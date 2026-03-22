@@ -1,0 +1,337 @@
+# Recipe Box — Project Specification
+
+## Overview
+
+A personal recipe organizer PWA that bridges the experience of physical index cards with the convenience of digital search, import, and organization. Built as a fullstack portfolio project demonstrating clean UI design, relational data modeling, web scraping, auth, and image management.
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Rationale |
+|-------|-----------|-----------|
+| Framework | **Next.js 14+ (App Router)** | Industry-standard React framework, SSR/SSG, API routes, excellent PWA support |
+| Database | **Supabase (Postgres)** | Relational DB for recipes/tags/collections, built-in auth, image storage via CDN, row-level security, generous free tier |
+| Auth | **Supabase Auth** | Email/password + OAuth (Google), row-level security ties recipes to users |
+| Image Storage | **Supabase Storage** | CDN-backed, per-user buckets, direct upload from client |
+| Styling | TBD — recommend **Tailwind CSS** | Utility-first, fast iteration, pairs well with Next.js |
+| Deployment | **Vercel** | Zero-config Next.js hosting, edge functions, free tier |
+| PWA | **next-pwa** or **Serwist** | Service worker, installable, offline-capable |
+
+---
+
+## Design Direction
+
+### Visual Identity
+Inspired by **Smitten Kitchen** (warm, approachable, tag browsing) and **NYT Cooking** (clean grid, powerful search/filter UX).
+
+- **Color palette**: Mostly black text with selective bold text. Soft purple/blue accents against a clean white/off-white background. 
+- **Typography**: Clean, editorial feel. Distinctive heading font paired with a highly readable body font. NOT generic (no Inter, Roboto, Arial).
+- **Layout**: Clean, consistent, editorial. No visual clutter.
+- **Aesthetic**: Warm and personal (like index cards) but polished and modern (like a well-designed cookbook).
+
+### Key UX Patterns (from user preferences)
+
+1. **Persistent top navigation** — always visible: "Recipes", "Ingredients", "Occasions", "Books", (or similar category tabs) accessible from any page (inspired by NYT Cooking).
+2. **Bottom navigation on mobile** — "Search", "Recent", "Recipes", "Cookbooks" as primary mobile actions (inspired by NYT app).
+3. **Tag browsing page** — shown when "Recipes" are selected. tags grouped by parent category (meal type, season, cuisine, dietary). Once a tag is selected displays all recipes related. Toggle between photo grid view and title-only list view (inspired by Smitten Kitchen).
+4. **Search + filter UX** — type a search term (searches recipe name, ingredients, and tags), then open a filter panel to filter by selecting multiple tags. Results update only after pressing "Done" / "Apply" — NOT live-filtering while selecting (inspired by NYT app).
+5. **Uniform card grid** — consistent card sizes for recipe browsing. Each card shows: thumbnail image, recipe name, and key metadata (cook time, cuisine tag).
+
+---
+
+## Core Features (MVP)
+
+### 1. Recipe CRUD
+
+Each recipe has the following fields:
+
+**Required:**
+- Title (string)
+- Created by (user_id, auto)
+
+**Optional (structured):**
+- Ingredients (array of `{ name, quantity, unit }` — supports servings multiplier)
+- Steps/Instructions (ordered array of text blocks, supports images per step)
+- Servings (integer, base amount for multiplier)
+- Prep time (minutes)
+- Cook time (minutes)
+- Cuisine type (tag: Italian, Mexican, Japanese, etc.)
+- Meal type tags (breakfast, lunch, dinner, snack, dessert)
+- Season tags (spring, summer, fall, winter)
+- Dietary tags (vegan, vegetarian, gluten-free, dairy-free, etc.)
+- Custom tags (user-defined)
+- Freeform notes (rich text / markdown — the "index card margin scribbles")
+- Source URL (original link if imported from web)
+- Thumbnail image (one primary image)
+- Additional images (for instructions, process shots, etc.)
+
+**Image-only mode:**
+- A recipe can be created with just a title, tags, and one or more images (e.g., photo of a handwritten card or cookbook page). No structured fields required beyond title.
+- Image-only recipes are searchable by name and tags, but not by ingredient text.
+
+**All recipes are fully editable after creation**, including imported recipes.
+
+### 2. Recipe Multiplier
+
+- User can adjust servings up/down and all ingredient quantities auto-scale proportionally, and vise versa. If no serving amounts are provided, only ingredient amounts are changed.
+- Ingredient quantities stored as numbers with units to enable math.
+
+### 3. URL Import (Recipe Scraping)
+
+**Flow:** User pastes a URL → app fetches and parses → auto-fills recipe fields → user reviews/edits → saves.
+
+**Technical approach:**
+- Most recipe blogs embed **JSON-LD structured data** (schema.org/Recipe). Parse this first — it contains title, ingredients, steps, cook time, images, servings.
+- Fallback: parse **Microdata** or **RDFa** recipe markup.
+- Fallback: basic HTML scraping of common recipe plugin patterns (WPRM, Tasty, etc.).
+- Extract all images from the page and let the user **select which photos to save** (thumbnail + additional).
+- Always save the **source URL** for reference.
+- Server-side scraping via Next.js API route (avoids CORS issues).
+
+### 4. Instagram Import (Semi-Automatic)
+
+Instagram's API restrictions make full auto-import difficult.
+
+- User pastes an Instagram post URL.
+- App attempts to extract the post image(s) and caption text via server-side fetch (Instagram's OEmbed API or page metadata).
+- Caption text is presented as raw text for the user to manually parse into ingredients/steps, or leave as notes.
+- User can also manually upload screenshots/saved images from Instagram.
+- Save the original Instagram URL as source.
+
+*Note: Full IG auto-scraping may break with API changes. Design the UI to gracefully fall back to manual entry.*
+
+### 5. Tags & Categories
+
+**Tag taxonomy (grouped by parent category):**
+- **Meal type**: breakfast, lunch, dinner, snacks, desserts, appetizers, sides, drinks
+- **Season**: spring, summer, fall, winter
+- **Cuisine**: Italian, Mexican, Japanese, Indian, French, American, Thai, Mediterranean, Anglo, etc.
+- **Dietary**: vegan, vegetarian, gluten-free, dairy-free, etc.
+- **Method**: sheet pan, one pot, oven, grill, smoker, instant pot, etc.
+- **Occasions**: large gatherings, dinner party, easy crew meals, weeknight, etc
+- **Custom**: user-created tags (no parent category)
+
+Tags are displayed grouped by parent category on the browse page (Smitten Kitchen style).
+
+### 6. Collections
+
+Collections are manually curated groups of recipes, like playlists:
+- Each collection has a name, optional description, and optional cover image.
+- A recipe can belong to multiple collections.
+- Examples: "Thanksgiving 2025", "Weeknight rotation", "To try", "Mom's recipes"
+- Collections are separate from tags — tags describe *what* a recipe is, collections describe *how you use it*.
+
+### 7. Search & Filtering
+
+**Text search** searches:
+- Recipe name
+- Ingredient names
+- Tags
+
+**Tag filtering:**
+- Filter by multiple tags simultaneously.
+- Tags presented as selectable buttons/chips grouped by category.
+- Filters apply only after user presses "Done" / "Apply" (not live).
+
+**Browse modes (per tag or search results):**
+- Photo grid (uniform cards with thumbnail + title)
+- Title list (compact, text-only list)
+- Toggle between these two views.
+
+### 8. Auth & Multi-User
+
+- Supabase Auth with email/password signup + Google OAuth.
+- Row-level security: each user only sees their own recipes, collections, and tags.
+- Future-proofed for sharing/multi-user if hosted publicly.
+
+### 9. PWA
+
+- Installable on mobile home screen.
+- Offline access to previously viewed recipes (service worker caching).
+- Responsive design: works beautifully on mobile, tablet, and desktop.
+
+---
+
+## Database Schema (Supabase / Postgres)
+
+```
+users (managed by Supabase Auth)
+  id (uuid, PK)
+  email
+  created_at
+
+recipes
+  id (uuid, PK)
+  user_id (FK → users.id)
+  title (text, required)
+  description (text)
+  servings (integer)
+  prep_time_minutes (integer)
+  cook_time_minutes (integer)
+  notes (text — freeform, markdown)
+  source_url (text — original link)
+  thumbnail_url (text — Supabase Storage URL)
+  is_image_only (boolean, default false)
+  created_at (timestamp)
+  updated_at (timestamp)
+
+ingredients
+  id (uuid, PK)
+  recipe_id (FK → recipes.id, CASCADE)
+  name (text)
+  quantity (decimal)
+  unit (text — e.g., "cups", "tbsp", "g")
+  sort_order (integer)
+
+steps
+  id (uuid, PK)
+  recipe_id (FK → recipes.id, CASCADE)
+  instruction (text)
+  image_url (text — optional step image)
+  sort_order (integer)
+
+recipe_images
+  id (uuid, PK)
+  recipe_id (FK → recipes.id, CASCADE)
+  image_url (text)
+  caption (text)
+  sort_order (integer)
+
+tags
+  id (uuid, PK)
+  user_id (FK → users.id)
+  name (text)
+  category (text — 'meal_type', 'season', 'cuisine', 'dietary', 'custom')
+
+recipe_tags (junction)
+  recipe_id (FK → recipes.id, CASCADE)
+  tag_id (FK → tags.id, CASCADE)
+  PRIMARY KEY (recipe_id, tag_id)
+
+collections
+  id (uuid, PK)
+  user_id (FK → users.id)
+  name (text)
+  description (text)
+  cover_image_url (text)
+  created_at (timestamp)
+
+collection_recipes (junction)
+  collection_id (FK → collections.id, CASCADE)
+  recipe_id (FK → recipes.id, CASCADE)
+  sort_order (integer)
+  PRIMARY KEY (collection_id, recipe_id)
+```
+
+**Row-level security:** All tables filtered by `user_id = auth.uid()`.
+
+**Search:** Postgres full-text search on `recipes.title` + `ingredients.name` using `tsvector` / `tsquery`. Create a materialized view or generated column combining recipe title + ingredient names for efficient search.
+
+---
+
+## Page Structure
+
+### Navigation
+- **Desktop top bar**: Logo/app name | Recipes | Browse by Tag | Collections | Search | Profile
+- **Mobile bottom bar**: Home (recent) | Browse | Search | Collections | Profile
+
+### Pages
+
+1. **Home / Dashboard** — recent recipes, quick access to collections, "Add recipe" CTA
+2. **All Recipes** — full grid of all recipes with search bar + filter button
+3. **Browse by Tag** — tags grouped by category (meal, season, cuisine, dietary). Click a tag → see all recipes with that tag in grid or list view (toggle)
+4. **Recipe Detail** — full recipe view with recipe multiplier, servings, ingredients, steps, images, notes, source link. Edit button.
+5. **Add/Edit Recipe** — form with all fields. URL import button at top. Image upload for thumbnail + additional images. Tag selection chips. Image-only toggle.
+6. **Collections** — grid of collection cards. Click → see recipes in that collection.
+7. **Search Results** — grid of matching recipes with active filter chips displayed. Filter panel accessible via button.
+8. **Login / Signup** — clean auth pages.
+
+---
+
+## Future Features (Post-MVP)
+
+### Recipe Variations (Priority — noted by user)
+A tabbed/toggle interface within a recipe where multiple variations live under one parent title. Example: "Focaccia" with tabs for "Original", "Gluten-Free", and "Sourdough". Each variation has its own ingredients, steps, and notes, but they share a title and are browsed as one entry. Drastically different recipes remain separate entries.
+- any existing recipe can be edited to include a variation
+- user has option to copy over original(or other variation) recipe and then edit or start from scratch when inputing ingredients and steps.
+
+**Possible schema addition:**
+```
+recipe_groups
+  id (uuid, PK)
+  user_id (FK → users.id)
+  title (text — shared title)
+  
+recipes.group_id (FK → recipe_groups.id, nullable)
+recipes.variation_name (text — e.g., "Gluten-Free", "Sourdough")
+```
+
+### Other Future Features
+- **Browser extension** — "Save to Recipe Box" button while browsing any recipe blog
+- **OCR / image-to-text** — automatically extract text from photos of handwritten cards or cookbook pages to auto-fill structured fields
+- **Meal planning** — weekly calendar view, drag recipes onto days
+- **Meal planning by ingredients** - type in ingredient(or saved lists of pantry items) into checklist format. Search all recipes that use selected items.
+- **Grocery list generation** — auto-generate shopping list from selected recipes, combining duplicate ingredients
+- **Page snapshot** — save a full HTML snapshot of imported recipe pages as backup
+- **Sharing** — share individual recipes or collections via public link
+- **Print view** — clean, index-card-style print layout for recipes
+- **Recipe scaling presets** — save common multipliers (e.g., "half batch", "double")
+
+---
+
+## Development Phases
+
+### Phase 1: Foundation
+- [ ] Next.js project setup with TypeScript
+- [ ] Supabase project creation + schema migration
+- [ ] Auth (signup, login, logout, protected routes)
+- [ ] Basic recipe CRUD (create, read, update, delete)
+- [ ] Image upload to Supabase Storage
+- [ ] Responsive layout + navigation shell
+
+### Phase 2: Core Experience
+- [ ] Tag system (predefined + custom tags)
+- [ ] Browse by tag page with grouped categories
+- [ ] Search (recipe name + ingredients)
+- [ ] Filter panel (multi-tag filtering with "Apply" button)
+- [ ] Grid / list view toggle
+- [ ] Servings multiplier
+- [ ] Freeform notes field
+- [ ] Image-only recipe mode
+
+### Phase 3: Import & Collections
+- [ ] URL import (paste URL → auto-scrape → review → save)
+- [ ] Instagram semi-auto import
+- [ ] Collections CRUD
+- [ ] Add/remove recipes from collections
+
+### Phase 4: Polish & PWA
+- [ ] PWA setup (service worker, manifest, installable)
+- [ ] Offline caching for viewed recipes
+- [ ] Design polish (typography, animations, micro-interactions)
+- [ ] Mobile-optimized experience
+- [ ] Performance optimization (image optimization, lazy loading)
+- [ ] Error handling + loading states
+
+### Phase 5: Future Features
+- [ ] Recipe variations (tabbed interface)
+- [ ] Browser extension
+- [ ] OCR for image recipes
+- [ ] Meal planning + grocery lists
+
+---
+
+## Portfolio Talking Points
+
+This project demonstrates:
+
+- **Fullstack architecture**: Next.js App Router + Supabase (Postgres, Auth, Storage)
+- **Relational data modeling**: many-to-many relationships (recipes ↔ tags, recipes ↔ collections), junction tables, row-level security
+- **Web scraping**: server-side recipe extraction from structured data (JSON-LD, Microdata) with HTML fallback
+- **Auth & security**: Supabase Auth with RLS policies, protected routes, multi-user data isolation
+- **Search**: Postgres full-text search with tsvector/tsquery
+- **Image management**: upload, storage, CDN delivery, thumbnail selection
+- **PWA**: service worker, offline support, installable
+- **Responsive design**: mobile-first, works across all devices
+- **UX thinking**: real user needs driving feature decisions (physical index cards → digital equivalent)
