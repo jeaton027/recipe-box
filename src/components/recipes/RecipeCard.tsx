@@ -39,11 +39,13 @@ export default function RecipeCard({ recipe }: { recipe: Recipe }) {
         <h3 className="font-heading text-sm font-semibold leading-tight line-clamp-2">
           {recipe.title}
         </h3>
-        {(recipe.cook_time_minutes || recipe.prep_time_minutes) && (
+        {(recipe.servings || recipe.prep_time_minutes || recipe.cook_time_minutes) && (
           <p className="mt-1 text-xs text-muted">
-            {recipe.prep_time_minutes && `${recipe.prep_time_minutes}m prep`}
-            {recipe.prep_time_minutes && recipe.cook_time_minutes && " · "}
-            {recipe.cook_time_minutes && `${recipe.cook_time_minutes}m cook`}
+            {[
+              recipe.servings && `${recipe.servings} ${recipe.servings_type || "servings"}`,
+              recipe.prep_time_minutes && `${recipe.prep_time_minutes} min prep`,
+              recipe.cook_time_minutes && `${recipe.cook_time_minutes} min cook`,
+            ].filter(Boolean).join(" · ")}
           </p>
         )}
       </div>

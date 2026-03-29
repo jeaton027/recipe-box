@@ -22,6 +22,10 @@ export default async function RecipesPage() {
         >
           Add recipe
         </Link>
+		<Link href="/recipes/import" 
+		className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark">
+          Import New Recipe
+        </Link>
       </div>
 
       {recipes && recipes.length > 0 ? (

@@ -3,6 +3,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import DeleteRecipeButton from "./DeleteRecipeButton";
+import ServingsMultiplier from "@/components/recipes/ServingsMultiplier";
+import AddToCollectionButton from "@/components/collections/AddToCollectionButton";
+import RecipeGallery from "@/components/recipes/RecipeGallery";
 
 export default async function RecipeDetailPage({
   params,
@@ -52,7 +55,8 @@ export default async function RecipeDetailPage({
             <p className="mt-2 text-muted">{recipe.description}</p>
           )}
         </div>
-        <div className="ml-4 flex items-center gap-2">
+        <div className="ml-4 flex flex-wrap items-center justify-end gap-2">
+          <AddToCollectionButton recipeId={id} />
           <Link
             href={`/recipes/${id}/edit`}
             className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
@@ -76,65 +80,56 @@ export default async function RecipeDetailPage({
         </div>
       )}
 
-      {/* Meta */}
-      <div className="mb-6 flex flex-wrap gap-4 text-sm text-muted">
-        {recipe.servings && (
-          <span>
-            <strong className="text-foreground">{recipe.servings}</strong>{" "}
-            servings
-          </span>
-        )}
-        {recipe.prep_time_minutes && (
-          <span>
-            <strong className="text-foreground">
-              {recipe.prep_time_minutes}
-            </strong>{" "}
-            min prep
-          </span>
-        )}
-        {recipe.cook_time_minutes && (
-          <span>
-            <strong className="text-foreground">
-              {recipe.cook_time_minutes}
-            </strong>{" "}
-            min cook
-          </span>
-        )}
-      </div>
+      {/* Gallery */}
+      {recipe.gallery_images && recipe.gallery_images.length > 0 && (
+        <RecipeGallery images={recipe.gallery_images} />
+      )}
+
+      {/* Meta: servings + times */}
+      {(recipe.servings || recipe.prep_time_minutes || recipe.cook_time_minutes) && (
+        <div className="mb-6 flex flex-wrap gap-3 text-sm text-muted">
+          {recipe.servings && (
+            <span className="flex gap-1">
+              <strong className="text-foreground">{recipe.servings}</strong>{" "}
+              {recipe.servings_type || "servings"}
+            </span>
+          )}
+          {recipe.prep_time_minutes && (
+            <span className="flex gap-1">
+              <strong className="text-foreground">{recipe.prep_time_minutes}</strong> min prep
+            </span>
+          )}
+          {recipe.cook_time_minutes && (
+            <span className="flex gap-1">
+              <strong className="text-foreground">{recipe.cook_time_minutes}</strong> min cook
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Tags */}
       {recipeTags.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-1.5">
           {recipeTags.map((tag: { id: string; name: string }) => (
-            <span
+            <Link
               key={tag.id}
-              className="rounded-full bg-accent-light px-3 py-1 text-xs font-medium text-accent-dark"
+              href={`/browse/${tag.id}`}
+              className="rounded-full bg-accent-light px-3 py-1 text-xs font-medium text-accent-dark hover:bg-accent hover:text-white transition-colors"
             >
               {tag.name}
-            </span>
+            </Link>
           ))}
         </div>
       )}
 
-      {/* Ingredients */}
+      {/* Ingredients with multiplier */}
       {ingredients && ingredients.length > 0 && (
-        <section className="mb-8">
-          <h2 className="font-heading mb-3 text-xl font-semibold">
-            Ingredients
-          </h2>
-          <ul className="space-y-1.5">
-            {ingredients.map((ing) => (
-              <li key={ing.id} className="flex items-baseline gap-2 text-sm">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                {ing.quantity && (
-                  <span className="font-medium">
-                    {ing.quantity} {ing.unit}
-                  </span>
-                )}
-                <span>{ing.name}</span>
-              </li>
-            ))}
-          </ul>
+        <section>
+          <ServingsMultiplier
+            servings={recipe.servings}
+            servingsType={recipe.servings_type}
+            ingredients={ingredients}
+          />
         </section>
       )}
 
@@ -143,14 +138,30 @@ export default async function RecipeDetailPage({
         <section className="mb-8">
           <h2 className="font-heading mb-3 text-xl font-semibold">Steps</h2>
           <ol className="space-y-4">
-            {steps.map((step, i) => (
-              <li key={step.id} className="flex gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-light text-xs font-medium text-accent-dark">
-                  {i + 1}
-                </span>
-                <p className="text-sm leading-relaxed">{step.instruction}</p>
-              </li>
-            ))}
+            {(() => {
+              let stepCount = 0;
+              return steps.map((step) => {
+                if (step.instruction.startsWith("§")) {
+                  const label = step.instruction.slice(1);
+                  return (
+                    <li key={step.id} className="mt-4 flex items-center gap-3">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-base font-semibold">{label}</span>
+                      <div className="h-px flex-1 bg-border" />
+                    </li>
+                  );
+                }
+                stepCount++;
+                return (
+                  <li key={step.id} className="flex gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-light text-xs font-medium text-accent-dark">
+                      {stepCount}
+                    </span>
+                    <p className="text-sm leading-relaxed">{step.instruction}</p>
+                  </li>
+                );
+              });
+            })()}
           </ol>
         </section>
       )}

@@ -4,11 +4,13 @@ export type Recipe = {
   title: string;
   description: string | null;
   servings: number | null;
+  servings_type: string | null;
   prep_time_minutes: number | null;
   cook_time_minutes: number | null;
   notes: string | null;
   source_url: string | null;
   thumbnail_url: string | null;
+  gallery_images: string[] | null;
   is_image_only: boolean;
   created_at: string;
   updated_at: string;

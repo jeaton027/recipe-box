@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import RecipeForm from "@/components/recipes/RecipeForm";
 
@@ -15,7 +16,9 @@ export default async function NewRecipePage() {
       <h1 className="mb-6 font-heading text-2xl font-bold tracking-tight">
         Add Recipe
       </h1>
-      <RecipeForm tags={tags ?? []} />
+      <Suspense>
+        <RecipeForm tags={tags ?? []} />
+      </Suspense>
     </div>
   );
 }
