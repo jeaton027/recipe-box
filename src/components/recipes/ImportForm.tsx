@@ -59,6 +59,10 @@ export default function ImportForm() {
     }
   }
 
+  function handleImageOnly() {
+    router.push("/recipes/new?imageOnly=true");
+  }
+
   return (
     <div className="space-y-4">
       {/* Tab toggle */}
@@ -95,13 +99,13 @@ export default function ImportForm() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://www.example.com/recipe/..."
-            className="input w-full"
+            className="block w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
           {error && <p className="text-sm text-red-500">{error}</p>}
           <button
             onClick={handleUrlImport}
             disabled={!url || loading}
-            className="btn-primary w-full"
+            className="block mx-auto rounded-md bg-white px-4 py-2.5 text-sm font-medium text-black transition-colors hover:ring-1 hover:ring-inset hover:ring-black disabled:opacity-50"
           >
             {loading ? "Importing..." : "Import Recipe"}
           </button>
@@ -116,7 +120,7 @@ export default function ImportForm() {
             onChange={(e) => setPasteText(e.target.value)}
             placeholder={`Paste a full recipe here. Works best with clear section labels, e.g.:\n\nChocolate Chip Cookies\nMakes 36 cookies\n\nIngredients\n2 cups flour\n1 cup sugar\n...\n\nInstructions\n1. Preheat oven to 375°F.\n2. Mix dry ingredients.\n...`}
             rows={14}
-            className="input w-full resize-y"
+            className="block w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent resize-y"
           />
           <p className="text-xs text-muted">
             Tip: include &ldquo;Ingredients&rdquo; and &ldquo;Instructions&rdquo; as section headers for the most accurate parsing.
@@ -125,12 +129,31 @@ export default function ImportForm() {
           <button
             onClick={handleTextParse}
             disabled={!pasteText.trim() || loading}
-            className="btn-primary w-full"
+            className="block mx-auto rounded-md bg-white px-4 py-2.5 text-sm font-medium text-black transition-colors hover:ring-1 hover:ring-inset hover:ring-black disabled:opacity-50"
           >
             {loading ? "Parsing..." : "Parse Recipe"}
           </button>
         </>
       )}
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 pt-4">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-xs text-muted">or</span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      {/* Image-only recipe */}
+      <button
+        type="button"
+        onClick={handleImageOnly}
+        className="block mx-auto rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-dark"
+      >
+        Image Only
+      </button>
+      <p className="text-center text-xs text-muted">
+        e.g., photo of a handwritten card
+      </p>
     </div>
   );
 }

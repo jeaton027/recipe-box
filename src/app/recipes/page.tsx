@@ -16,16 +16,6 @@ export default async function RecipesPage() {
         <h1 className="font-heading text-2xl font-bold tracking-tight">
           All Recipes
         </h1>
-        <Link
-          href="/recipes/new"
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark"
-        >
-          Add recipe
-        </Link>
-		<Link href="/recipes/import" 
-		className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark">
-          Import New Recipe
-        </Link>
       </div>
 
       {recipes && recipes.length > 0 ? (

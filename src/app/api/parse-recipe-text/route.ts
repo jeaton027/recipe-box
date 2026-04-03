@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const INGREDIENT_HEADERS = /^(ingredients?|what you('ll)? need|for the .+):?$/i;
+const INGREDIENT_HEADERS = /^(ingredients?|what you('ll)? need):?$/i;
+const DIVIDER_FOR_THE = /^for\s+(?:the\s+)?(.+?)[:.]?\s*$/i;
+const DIVIDER_COLON = /^([^0-9]+):$/;
 const INSTRUCTION_HEADERS = /^(instructions?|directions?|steps?|method|preparation|how to (make|prepare)):?$/i;
 const META_SERVINGS = /^(?:makes?|serves?|yields?)\s+(?:about\s+)?(\d+)\s*(.*)/i;
 const META_PREP = /prep(?:\s+time)?:?\s*(\d+)\s*(?:hours?|hrs?|minutes?|mins?)/i;
 const META_COOK = /(?:cook|bake)(?:\s+time)?:?\s*(\d+)\s*(?:hours?|hrs?|minutes?|mins?)/i;
 const STEP_NUMBER = /^(?:step\s*)?\d+[.):\s]\s*/i;
-const LOOKS_LIKE_INGREDIENT = /^[\d⅛¼⅜½⅝¾⅞]/;
+const LOOKS_LIKE_INGREDIENT = /^[\d⅛¼⅓⅜½⅝⅔¾⅞]/;
 
 function decodeHtml(str: string): string {
   return str
@@ -28,12 +30,12 @@ function parseIngredientLine(str: string): {
 
   // Match quantity + unit + name: "1 1/2 cups all-purpose flour"
   const m = clean.match(
-    /^([\d.\s\/⅛¼⅜½⅝¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
+    /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
   );
   if (m) return { quantity: m[1].trim(), unit: m[2], name: decodeHtml(m[3].trim()) };
 
   // Match quantity + name (no unit): "2 eggs"
-  const m2 = clean.match(/^([\d.\s\/⅛¼⅜½⅝¾⅞]+)\s+(.+)$/);
+  const m2 = clean.match(/^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+(.+)$/);
   if (m2) return { quantity: m2[1].trim(), unit: null, name: decodeHtml(m2[2].trim()) };
 
   // Fallback: whole string as name
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   const lines = text
     .split("\n")
-    .map((l: string) => l.trim().replace(/^[•\-–—*▪▸►◦‣⁃]\s*/, ""))
+    .map((l: string) => l.trim().replace(/^[•\-–—*▪▸►◦‣⁃▢☐□✓✔☑]\s*/, ""))
     .filter((l: string) => l.length > 0);
 
   let title = "";
@@ -148,12 +150,34 @@ export async function POST(req: NextRequest) {
         if (cleaned) steps.push(decodeHtml(cleaned));
         continue;
       }
+      // Check for divider: "For the crust" or "Sauce ingredients:"
+      const forMatch = line.match(DIVIDER_FOR_THE);
+      if (forMatch && !LOOKS_LIKE_INGREDIENT.test(line)) {
+        ingredients.push({ quantity: null, unit: "§", name: decodeHtml(forMatch[1].trim()) });
+        continue;
+      }
+      const colonMatch = line.match(DIVIDER_COLON);
+      if (colonMatch && !LOOKS_LIKE_INGREDIENT.test(line)) {
+        ingredients.push({ quantity: null, unit: "§", name: decodeHtml(colonMatch[1].trim()) });
+        continue;
+      }
       ingredients.push(parseIngredientLine(line));
       continue;
     }
 
     // ── Instructions section ──
     if (section === "instructions") {
+      // Check for divider in steps: "For the glaze:" or "Assembly:"
+      const forMatch = line.match(DIVIDER_FOR_THE);
+      if (forMatch && !STEP_NUMBER.test(line)) {
+        steps.push("§" + decodeHtml(forMatch[1].trim()));
+        continue;
+      }
+      const colonMatch = line.match(DIVIDER_COLON);
+      if (colonMatch && !STEP_NUMBER.test(line)) {
+        steps.push("§" + decodeHtml(colonMatch[1].trim()));
+        continue;
+      }
       const cleaned = line.replace(STEP_NUMBER, "").trim();
       if (cleaned) steps.push(decodeHtml(cleaned));
     }

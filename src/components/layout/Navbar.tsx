@@ -25,12 +25,20 @@ export default function Navbar() {
   return (
     <nav className="hidden border-b border-border bg-white md:block">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link
-          href="/"
-          className="font-heading text-xl font-bold tracking-tight"
-        >
-          Recipe Box
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/"
+            className="font-heading text-xl font-bold tracking-tight"
+          >
+            Recipe Box
+          </Link>
+          <Link
+            href="/recipes/import"
+            className="rounded-md px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-accent-light hover:text-accent-dark"
+          >
+            Add Recipe
+          </Link>
+        </div>
 
         <div className="flex items-center gap-1">
           {navLinks.map((link) => {

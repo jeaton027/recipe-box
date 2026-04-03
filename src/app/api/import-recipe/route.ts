@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
   const ingredients = rawIngredients.map((str) => {
     // match: optional number/fraction, optional unit word, rest is name
     const m = str.match(
-      /^([\d.\s\/⅛¼⅜½⅝¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
+      /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
     );
     if (m) {
       return { quantity: m[1].trim() || null, unit: m[2], name: m[3] };
@@ -106,17 +106,33 @@ export async function POST(req: NextRequest) {
     return { quantity: null, unit: null, name: str };
   });
 
-  // 7)parse steps
+  // 7)parse steps — handles flat HowToStep arrays AND nested HowToSection
   const rawSteps = Array.isArray(schema.recipeInstructions)
     ? schema.recipeInstructions
     : [];
-  const steps = rawSteps.map((s: unknown) => {
-    if (typeof s === "string") return s;
+  const steps: string[] = [];
+  for (const s of rawSteps) {
+    if (typeof s === "string") { if (s.trim()) steps.push(s); continue; }
     if (typeof s === "object" && s !== null) {
-      return (s as Record<string, unknown>).text ?? "";
+      const obj = s as Record<string, unknown>;
+      // HowToSection: has a name and nested itemListElement
+      if (Array.isArray(obj.itemListElement)) {
+        if (obj.name && typeof obj.name === "string") {
+          steps.push("§" + obj.name); // section divider
+        }
+        for (const sub of obj.itemListElement) {
+          if (typeof sub === "string") { if (sub.trim()) steps.push(sub); }
+          else if (typeof sub === "object" && sub !== null) {
+            const text = (sub as Record<string, unknown>).text;
+            if (text && typeof text === "string") steps.push(text);
+          }
+        }
+        continue;
+      }
+      // HowToStep: has .text
+      if (obj.text && typeof obj.text === "string") steps.push(obj.text);
     }
-    return "";
-  }).filter(Boolean);
+  }
 
   // 8) collect images — take best single image from schema, plus step images
   function getBestImage(img: unknown): string | null {

@@ -57,6 +57,55 @@ type StepItem =
   | { kind: "step"; instruction: string }
   | { kind: "divider"; label: string };
 
+// Client-side parsers for paste-and-parse feature
+function parseIngredientText(text: string): IngredientItem[] {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const items: IngredientItem[] = [];
+  for (const line of lines) {
+    const cleaned = line.replace(/^[•\-–—*▪▸►◦‣⁃▢☐□]\s*/, "");
+    // Divider: "For the ..."
+    if (/^For the .+/i.test(cleaned)) {
+      items.push({ kind: "divider", label: cleaned.replace(/^For the /i, "").replace(/:$/, "") });
+      continue;
+    }
+    // Divider: line ending with ":" and no leading numbers
+    if (/^[^0-9⅛¼⅜½⅝¾⅞⅓⅔]+:$/.test(cleaned)) {
+      items.push({ kind: "divider", label: cleaned.replace(/:$/, "").trim() });
+      continue;
+    }
+    // Qty + unit + name
+    const m = cleaned.match(/^([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)\s+([a-zA-Z]+\.?)\s+(.+)$/);
+    if (m) { items.push({ kind: "ingredient", quantity: m[1].trim(), unit: m[2], name: m[3].trim() }); continue; }
+    // Qty + name (no unit)
+    const m2 = cleaned.match(/^([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)\s+(.+)$/);
+    if (m2) { items.push({ kind: "ingredient", quantity: m2[1].trim(), unit: "", name: m2[2].trim() }); continue; }
+    // Fallback: whole line as name
+    items.push({ kind: "ingredient", quantity: "", unit: "", name: cleaned });
+  }
+  return items;
+}
+
+function parseStepText(text: string): StepItem[] {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const items: StepItem[] = [];
+  for (const line of lines) {
+    // Divider: "For the ..."
+    if (/^For the .+/i.test(line)) {
+      items.push({ kind: "divider", label: line.replace(/^For the /i, "").replace(/:$/, "") });
+      continue;
+    }
+    // Divider: short line ending with ":"
+    if (/^[^0-9]+:$/.test(line) && line.length < 50) {
+      items.push({ kind: "divider", label: line.replace(/:$/, "").trim() });
+      continue;
+    }
+    // Strip leading step numbers
+    const cleaned = line.replace(/^(?:step\s*)?\d+[.):\s]\s*/i, "").trim();
+    if (cleaned) items.push({ kind: "step", instruction: cleaned });
+  }
+  return items;
+}
+
 type RecipeFormProps = {
   recipe?: RecipeWithDetails;
   tags: Tag[];
@@ -77,6 +126,7 @@ const RemoveIcon = () => (
 
 export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const isEditing = !!recipe;
 
@@ -88,7 +138,9 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   const [cookTime, setCookTime] = useState(recipe?.cook_time_minutes?.toString() ?? "");
   const [notes, setNotes] = useState(recipe?.notes ?? "");
   const [sourceUrl, setSourceUrl] = useState(recipe?.source_url ?? "");
-  const [isImageOnly, setIsImageOnly] = useState(recipe?.is_image_only ?? false);
+  const [isImageOnly, setIsImageOnly] = useState(
+    recipe?.is_image_only ?? searchParams.get("imageOnly") === "true"
+  );
   const [thumbnailUrl, setThumbnailUrl] = useState(recipe?.thumbnail_url ?? "");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
     recipe?.tags?.map((t) => t.id) ?? []
@@ -110,6 +162,12 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
     ) ?? [{ kind: "step", instruction: "" }]
   );
 
+  // Paste-and-parse state
+  const [showIngredientPaste, setShowIngredientPaste] = useState(false);
+  const [showStepPaste, setShowStepPaste] = useState(false);
+  const [ingredientPasteText, setIngredientPasteText] = useState("");
+  const [stepPasteText, setStepPasteText] = useState("");
+
   const [importedImages, setImportedImages] = useState<string[]>(() => {
     if (!recipe) return [];
     const gallery = recipe.gallery_images ?? [];
@@ -128,9 +186,27 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   const [dragStepIndex, setDragStepIndex] = useState<number | null>(null);
   const [dragStepOverIndex, setDragStepOverIndex] = useState<number | null>(null);
   const dragIngredientRef = useRef<number | null>(null);
+  const dragIngredientOverRef = useRef<number | null>(null);
   const dragStepRef = useRef<number | null>(null);
+  const dragStepOverRef = useRef<number | null>(null);
 
-  const searchParams = useSearchParams();
+  // Ghost line: shows where the last moved item came from
+  const [ingredientGhostIndex, setIngredientGhostIndex] = useState<number | null>(null);
+  const [ingredientGhostKey, setIngredientGhostKey] = useState(0);
+  const [stepGhostIndex, setStepGhostIndex] = useState<number | null>(null);
+  const [stepGhostKey, setStepGhostKey] = useState(0);
+
+  useEffect(() => {
+    if (ingredientGhostIndex === null) return;
+    const timer = setTimeout(() => setIngredientGhostIndex(null), 15000);
+    return () => clearTimeout(timer);
+  }, [ingredientGhostIndex, ingredientGhostKey]);
+
+  useEffect(() => {
+    if (stepGhostIndex === null) return;
+    const timer = setTimeout(() => setStepGhostIndex(null), 15000);
+    return () => clearTimeout(timer);
+  }, [stepGhostIndex, stepGhostKey]);
 
   useEffect(() => {
     if (searchParams.get("source") === "import") {
@@ -144,18 +220,18 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         setPrepTime(data.prep_time_minutes?.toString() ?? "");
         setCookTime(data.cook_time_minutes?.toString() ?? "");
         setIngredients(
-          data.ingredients?.map((i: { quantity: string | null; unit: string | null; name: string }): IngredientItem => ({
-            kind: "ingredient",
-            name: i.name,
-            quantity: i.quantity ?? "",
-            unit: i.unit ?? "",
-          })) ?? [{ kind: "ingredient", name: "", quantity: "", unit: "" }]
+          data.ingredients?.map((i: { quantity: string | null; unit: string | null; name: string }): IngredientItem =>
+            i.unit === DIVIDER_MARKER
+              ? { kind: "divider", label: i.name }
+              : { kind: "ingredient", name: i.name, quantity: i.quantity ?? "", unit: i.unit ?? "" }
+          ) ?? [{ kind: "ingredient", name: "", quantity: "", unit: "" }]
         );
         setSteps(
-          data.steps?.map((s: string): StepItem => ({
-            kind: "step",
-            instruction: s,
-          })) ?? [{ kind: "step", instruction: "" }]
+          data.steps?.map((s: string): StepItem =>
+            s.startsWith(DIVIDER_MARKER)
+              ? { kind: "divider", label: s.slice(1) }
+              : { kind: "step", instruction: s }
+          ) ?? [{ kind: "step", instruction: "" }]
         );
         setSourceUrl(data.source_url ?? "");
         if (data.images?.length) {
@@ -180,9 +256,11 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   };
 
   function toggleTag(tagId: string) {
+    const scrollY = window.scrollY;
     setSelectedTagIds((prev) =>
       prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
     );
+    requestAnimationFrame(() => window.scrollTo(0, scrollY));
   }
 
   // ── Ingredients ─────────────────────────────────────────────────────────────
@@ -226,6 +304,10 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   }
 
   function moveIngredient(from: number, to: number) {
+    // Show ghost at the previous position
+    setIngredientGhostIndex(from < to ? from : from + 1);
+    setIngredientGhostKey((k) => k + 1);
+
     setIngredients((prev) => {
       const updated = [...prev];
       const [item] = updated.splice(from, 1);
@@ -257,6 +339,10 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   }
 
   function moveStep(from: number, to: number) {
+    // Show ghost at the previous position
+    setStepGhostIndex(from < to ? from : from + 1);
+    setStepGhostKey((k) => k + 1);
+
     setSteps((prev) => {
       const updated = [...prev];
       const [item] = updated.splice(from, 1);
@@ -368,42 +454,69 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   function ingredientGripHandlers(i: number) {
     return {
       draggable: true as const,
-      onDragStart: (e: React.DragEvent) => { e.dataTransfer.effectAllowed = "move"; dragIngredientRef.current = i; setDragIngredientIndex(i); },
-      onDragEnd: () => { dragIngredientRef.current = null; setDragIngredientIndex(null); setDragIngredientOverIndex(null); },
+      onDragStart: (e: React.DragEvent) => {
+        e.dataTransfer.effectAllowed = "move"; dragIngredientRef.current = i; setDragIngredientIndex(i);
+        dragIngredientOverRef.current = null; setIngredientGhostIndex(null);
+      },
+      onDragEnd: () => {
+        dragIngredientRef.current = null; dragIngredientOverRef.current = null;
+        setDragIngredientIndex(null); setDragIngredientOverIndex(null);
+      },
     };
   }
 
-  // Row: receives drops
+  // Row: sets visual indicator on hover (no onDrop — container handles it)
   function ingredientDropHandlers(i: number) {
     return {
-      onDragEnter: () => setDragIngredientOverIndex(i),
-      onDragOver: (e: React.DragEvent) => e.preventDefault(),
-      onDrop: () => {
-        const from = dragIngredientRef.current;
-        if (from !== null && from !== i) moveIngredient(from, i);
-        dragIngredientRef.current = null; setDragIngredientIndex(null); setDragIngredientOverIndex(null);
+      onDragOver: (e: React.DragEvent) => {
+        e.preventDefault(); setDragIngredientOverIndex(i); dragIngredientOverRef.current = i;
       },
     };
+  }
+
+  // Container-level drop: always reads the ref so it matches the visual line
+  function handleIngredientContainerDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const from = dragIngredientRef.current;
+    const to = dragIngredientOverRef.current;
+    if (from !== null && to !== null && from !== to && from !== to - 1) {
+      moveIngredient(from, to);
+    }
+    dragIngredientRef.current = null; dragIngredientOverRef.current = null;
+    setDragIngredientIndex(null); setDragIngredientOverIndex(null);
   }
 
   function stepGripHandlers(i: number) {
     return {
       draggable: true as const,
-      onDragStart: (e: React.DragEvent) => { e.dataTransfer.effectAllowed = "move"; dragStepRef.current = i; setDragStepIndex(i); },
-      onDragEnd: () => { dragStepRef.current = null; setDragStepIndex(null); setDragStepOverIndex(null); },
+      onDragStart: (e: React.DragEvent) => {
+        e.dataTransfer.effectAllowed = "move"; dragStepRef.current = i; setDragStepIndex(i);
+        dragStepOverRef.current = null; setStepGhostIndex(null);
+      },
+      onDragEnd: () => {
+        dragStepRef.current = null; dragStepOverRef.current = null;
+        setDragStepIndex(null); setDragStepOverIndex(null);
+      },
     };
   }
 
   function stepDropHandlers(i: number) {
     return {
-      onDragEnter: () => setDragStepOverIndex(i),
-      onDragOver: (e: React.DragEvent) => e.preventDefault(),
-      onDrop: () => {
-        const from = dragStepRef.current;
-        if (from !== null && from !== i) moveStep(from, i);
-        dragStepRef.current = null; setDragStepIndex(null); setDragStepOverIndex(null);
+      onDragOver: (e: React.DragEvent) => {
+        e.preventDefault(); setDragStepOverIndex(i); dragStepOverRef.current = i;
       },
     };
+  }
+
+  function handleStepContainerDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const from = dragStepRef.current;
+    const to = dragStepOverRef.current;
+    if (from !== null && to !== null && from !== to && from !== to - 1) {
+      moveStep(from, to);
+    }
+    dragStepRef.current = null; dragStepOverRef.current = null;
+    setDragStepIndex(null); setDragStepOverIndex(null);
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -421,12 +534,7 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
           placeholder="Recipe name" />
       </div>
 
-      {/* Image-only toggle */}
-      <div className="flex items-center gap-3">
-        <input id="imageOnly" type="checkbox" checked={isImageOnly} onChange={(e) => setIsImageOnly(e.target.checked)}
-          className="h-4 w-4 rounded border-border text-accent focus:ring-accent" />
-        <label htmlFor="imageOnly" className="text-sm">Image-only recipe (e.g., photo of a handwritten card)</label>
-      </div>
+      {/* Image-only mode is set via URL param ?imageOnly=true */}
 
       {/* Image picker */}
       <ImagePicker
@@ -506,20 +614,57 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
       {/* ── Ingredients ── */}
       {!isImageOnly && (
         <fieldset>
-          <legend className="text-sm font-medium">Ingredients</legend>
-          <div className="mt-2 space-y-2">
+          <div className="flex items-center justify-between">
+            <legend className="text-sm font-medium">Ingredients</legend>
+            <button type="button" onClick={() => { setShowIngredientPaste((v) => !v); setIngredientPasteText(""); }}
+              className="text-xs text-muted hover:text-foreground">
+              {showIngredientPaste ? "Cancel" : "Paste & Parse"}
+            </button>
+          </div>
+          {showIngredientPaste && (
+            <div className="mt-2 space-y-2">
+              <textarea
+                value={ingredientPasteText}
+                onChange={(e) => setIngredientPasteText(e.target.value)}
+                placeholder="Paste ingredients here — one per line"
+                rows={5}
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm resize-y focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+              <button type="button"
+                disabled={!ingredientPasteText.trim()}
+                onClick={() => {
+                  const parsed = parseIngredientText(ingredientPasteText);
+                  if (parsed.length > 0) setIngredients(parsed);
+                  setShowIngredientPaste(false);
+                  setIngredientPasteText("");
+                }}
+                className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-dark disabled:opacity-50">
+                Parse Ingredients
+              </button>
+            </div>
+          )}
+          <div className="mt-2 space-y-2"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleIngredientContainerDrop}
+          >
             {ingredients.map((item, i) => (
               <Fragment key={i}>
-                {dragIngredientOverIndex === i && dragIngredientIndex !== null && dragIngredientIndex !== i && (
+                {dragIngredientOverIndex === i && dragIngredientIndex !== null && dragIngredientIndex !== i && dragIngredientIndex !== i - 1 && (
                   <div className="h-0.5 rounded-full bg-accent" />
+                )}
+                {ingredientGhostIndex === i && dragIngredientIndex === null && (
+                  <div className="h-0.5 rounded-full bg-accent/30 transition-opacity duration-500" />
                 )}
 
                 {item.kind === "divider" ? (
                   /* ── Ingredient divider row ── */
                   <div
                     {...ingredientDropHandlers(i)}
-                    className={`mt-4 flex items-center gap-2 transition-opacity ${dragIngredientIndex === i ? "opacity-40" : ""}`}
+                    className={`relative mt-4 flex items-center gap-2 transition-opacity ${dragIngredientIndex === i ? "opacity-40" : ""}`}
                   >
+                    {dragIngredientIndex !== null && dragIngredientIndex !== i && (
+                      <div className="absolute inset-0 z-10" onDragOver={(e) => e.preventDefault()} />
+                    )}
                     <div className="flex flex-1 items-center gap-2">
                       <div className="h-px flex-1 bg-border" />
                       <input
@@ -534,7 +679,7 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
                     <button type="button" onClick={() => removeIngredient(i)} className="text-muted hover:text-red-500">
                       <RemoveIcon />
                     </button>
-                    <span {...ingredientGripHandlers(i)} className="cursor-grab touch-none text-muted hover:text-foreground">
+                    <span {...ingredientGripHandlers(i)} className="relative z-20 cursor-grab touch-none text-muted hover:text-foreground">
                       <GripIcon />
                     </span>
                   </div>
@@ -542,9 +687,12 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
                   /* ── Regular ingredient row ── */
                   <div
                     {...ingredientDropHandlers(i)}
-                    className={`flex items-center gap-2 transition-opacity ${dragIngredientIndex === i ? "opacity-40" : ""}`}
+                    className={`relative flex items-center gap-2 transition-opacity ${dragIngredientIndex === i ? "opacity-40" : ""}`}
                   >
-                    <span {...ingredientGripHandlers(i)} className="cursor-grab touch-none text-muted hover:text-foreground">
+                    {dragIngredientIndex !== null && dragIngredientIndex !== i && (
+                      <div className="absolute inset-0 z-10" onDragOver={(e) => e.preventDefault()} />
+                    )}
+                    <span {...ingredientGripHandlers(i)} className="relative z-20 cursor-grab touch-none text-muted hover:text-foreground">
                       <GripIcon />
                     </span>
                     <input type="text" value={item.quantity}
@@ -572,16 +720,15 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
             {/* Bottom drop zone */}
             {dragIngredientIndex !== null && (
               <div className="h-4"
-                onDragEnter={() => setDragIngredientOverIndex(ingredients.length)}
-                onDragOver={(e) => { e.preventDefault(); setDragIngredientOverIndex(ingredients.length); }}
-                onDrop={() => {
-                  const from = dragIngredientRef.current;
-                  if (from !== null) moveIngredient(from, ingredients.length);
-                  dragIngredientRef.current = null; setDragIngredientIndex(null); setDragIngredientOverIndex(null);
+                onDragOver={(e) => {
+                  e.preventDefault(); setDragIngredientOverIndex(ingredients.length); dragIngredientOverRef.current = ingredients.length;
                 }}
               >
-                {dragIngredientOverIndex === ingredients.length && <div className="h-0.5 rounded-full bg-accent" />}
+                {dragIngredientOverIndex === ingredients.length && dragIngredientIndex !== ingredients.length - 1 && <div className="h-0.5 rounded-full bg-accent" />}
               </div>
+            )}
+            {ingredientGhostIndex === ingredients.length && dragIngredientIndex === null && (
+              <div className="h-0.5 rounded-full bg-accent/30 transition-opacity duration-500" />
             )}
           </div>
 
@@ -600,8 +747,39 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
       {/* ── Steps ── */}
       {!isImageOnly && (
         <fieldset>
-          <legend className="text-sm font-medium">Steps</legend>
-          <div className="mt-2 space-y-2">
+          <div className="flex items-center justify-between">
+            <legend className="text-sm font-medium">Steps</legend>
+            <button type="button" onClick={() => { setShowStepPaste((v) => !v); setStepPasteText(""); }}
+              className="text-xs text-muted hover:text-foreground">
+              {showStepPaste ? "Cancel" : "Paste & Parse"}
+            </button>
+          </div>
+          {showStepPaste && (
+            <div className="mt-2 space-y-2">
+              <textarea
+                value={stepPasteText}
+                onChange={(e) => setStepPasteText(e.target.value)}
+                placeholder="Paste steps here — one per line or numbered"
+                rows={5}
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm resize-y focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+              <button type="button"
+                disabled={!stepPasteText.trim()}
+                onClick={() => {
+                  const parsed = parseStepText(stepPasteText);
+                  if (parsed.length > 0) setSteps(parsed);
+                  setShowStepPaste(false);
+                  setStepPasteText("");
+                }}
+                className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-dark disabled:opacity-50">
+                Parse Steps
+              </button>
+            </div>
+          )}
+          <div className="mt-2 space-y-2"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleStepContainerDrop}
+          >
             {(() => {
               let stepCount = 0;
               return steps.map((item, i) => {
@@ -609,16 +787,22 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
                 const stepNumber = stepCount;
                 return (
                   <Fragment key={i}>
-                    {dragStepOverIndex === i && dragStepIndex !== null && dragStepIndex !== i && (
+                    {dragStepOverIndex === i && dragStepIndex !== null && dragStepIndex !== i && dragStepIndex !== i - 1 && (
                       <div className="h-0.5 rounded-full bg-accent" />
+                    )}
+                    {stepGhostIndex === i && dragStepIndex === null && (
+                      <div className="h-0.5 rounded-full bg-accent/30 transition-opacity duration-500" />
                     )}
 
                     {item.kind === "divider" ? (
                       /* ── Step divider row ── */
                       <div
                         {...stepDropHandlers(i)}
-                        className={`mt-4 flex items-center gap-2 transition-opacity ${dragStepIndex === i ? "opacity-40" : ""}`}
+                        className={`relative mt-4 flex items-center gap-2 transition-opacity ${dragStepIndex === i ? "opacity-40" : ""}`}
                       >
+                        {dragStepIndex !== null && dragStepIndex !== i && (
+                          <div className="absolute inset-0 z-10" onDragOver={(e) => e.preventDefault()} />
+                        )}
                         <div className="flex flex-1 items-center gap-2">
                           <div className="h-px flex-1 bg-border" />
                           <input
@@ -633,7 +817,7 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
                         <button type="button" onClick={() => removeStep(i)} className="text-muted hover:text-red-500">
                           <RemoveIcon />
                         </button>
-                        <span {...stepGripHandlers(i)} className="cursor-grab touch-none text-muted hover:text-foreground">
+                        <span {...stepGripHandlers(i)} className="relative z-20 cursor-grab touch-none text-muted hover:text-foreground">
                           <GripIcon />
                         </span>
                       </div>
@@ -641,9 +825,12 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
                       /* ── Regular step row ── */
                       <div
                         {...stepDropHandlers(i)}
-                        className={`flex items-start gap-2 transition-opacity ${dragStepIndex === i ? "opacity-40" : ""}`}
+                        className={`relative flex items-start gap-2 transition-opacity ${dragStepIndex === i ? "opacity-40" : ""}`}
                       >
-                        <span {...stepGripHandlers(i)} className="mt-2 cursor-grab touch-none text-muted hover:text-foreground">
+                        {dragStepIndex !== null && dragStepIndex !== i && (
+                          <div className="absolute inset-0 z-10" onDragOver={(e) => e.preventDefault()} />
+                        )}
+                        <span {...stepGripHandlers(i)} className="relative z-20 mt-2 cursor-grab touch-none text-muted hover:text-foreground">
                           <GripIcon />
                         </span>
                         <span className="mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-light text-xs font-medium text-accent-dark">
@@ -682,16 +869,15 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
             {/* Bottom drop zone */}
             {dragStepIndex !== null && (
               <div className="h-4"
-                onDragEnter={() => setDragStepOverIndex(steps.length)}
-                onDragOver={(e) => { e.preventDefault(); setDragStepOverIndex(steps.length); }}
-                onDrop={() => {
-                  const from = dragStepRef.current;
-                  if (from !== null) moveStep(from, steps.length);
-                  dragStepRef.current = null; setDragStepIndex(null); setDragStepOverIndex(null);
+                onDragOver={(e) => {
+                  e.preventDefault(); setDragStepOverIndex(steps.length); dragStepOverRef.current = steps.length;
                 }}
               >
-                {dragStepOverIndex === steps.length && <div className="h-0.5 rounded-full bg-accent" />}
+                {dragStepOverIndex === steps.length && dragStepIndex !== steps.length - 1 && <div className="h-0.5 rounded-full bg-accent" />}
               </div>
+            )}
+            {stepGhostIndex === steps.length && dragStepIndex === null && (
+              <div className="h-0.5 rounded-full bg-accent/30 transition-opacity duration-500" />
             )}
           </div>
 
