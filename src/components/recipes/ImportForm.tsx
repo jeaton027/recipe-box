@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Mode = "url" | "paste";
+type Mode = "url" | "paste" | "image";
 
 export default function ImportForm() {
   const [mode, setMode] = useState<Mode>("url");
@@ -81,13 +81,24 @@ export default function ImportForm() {
         <button
           type="button"
           onClick={() => { setMode("paste"); setError(null); }}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors rounded-r-lg border-l border-border ${
+          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors border-l border-border ${
             mode === "paste"
               ? "bg-accent text-white"
               : "text-muted hover:text-foreground"
           }`}
         >
           Paste Text
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMode("image"); setError(null); }}
+          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors rounded-r-lg border-l border-border ${
+            mode === "image"
+              ? "bg-accent text-white"
+              : "text-muted hover:text-foreground"
+          }`}
+        >
+          Image Only
         </button>
       </div>
 
@@ -105,7 +116,7 @@ export default function ImportForm() {
           <button
             onClick={handleUrlImport}
             disabled={!url || loading}
-            className="block mx-auto rounded-md bg-white px-4 py-2.5 text-sm font-medium text-black transition-colors hover:ring-1 hover:ring-inset hover:ring-black disabled:opacity-50"
+            className="block mx-auto rounded-md bg-accent-soft px-4 py-2.5 text-sm font-medium text-black transition-colors hover:ring-1 hover:ring-inset hover:ring-accent disabled:opacity-50"
           >
             {loading ? "Importing..." : "Import Recipe"}
           </button>
@@ -129,31 +140,28 @@ export default function ImportForm() {
           <button
             onClick={handleTextParse}
             disabled={!pasteText.trim() || loading}
-            className="block mx-auto rounded-md bg-white px-4 py-2.5 text-sm font-medium text-black transition-colors hover:ring-1 hover:ring-inset hover:ring-black disabled:opacity-50"
+            className="block mx-auto rounded-md bg-accent-soft px-4 py-2.5 text-sm font-medium text-black transition-colors hover:ring-1 hover:ring-inset hover:ring-accent disabled:opacity-50"
           >
             {loading ? "Parsing..." : "Parse Recipe"}
           </button>
         </>
       )}
 
-      {/* Divider */}
-      <div className="flex items-center gap-3 pt-4">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-xs text-muted">or</span>
-        <div className="h-px flex-1 bg-border" />
-      </div>
-
-      {/* Image-only recipe */}
-      <button
-        type="button"
-        onClick={handleImageOnly}
-        className="block mx-auto rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-dark"
-      >
-        Image Only
-      </button>
-      <p className="text-center text-xs text-muted">
-        e.g., photo of a handwritten card
-      </p>
+      {/* Image Only mode */}
+      {mode === "image" && (
+        <>
+          <p className="text-center text-sm text-muted">
+            Upload a photo of a handwritten recipe card or screenshot.
+          </p>
+          <button
+            type="button"
+            onClick={handleImageOnly}
+            className="block mx-auto rounded-md bg-accent-soft px-4 py-2.5 text-sm font-medium text-black transition-colors hover:ring-1 hover:ring-inset hover:ring-accent disabled:opacity-50"
+          >
+            Create Recipe
+          </button>
+        </>
+      )}
     </div>
   );
 }

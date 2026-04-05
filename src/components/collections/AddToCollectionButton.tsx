@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import type { Collection } from "@/lib/types/database";
 
@@ -10,7 +11,8 @@ export default function AddToCollectionButton({ recipeId }: { recipeId: string }
   const [collections, setCollections] = useState<Collection[]>([]);
   const [memberOf, setMemberOf] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [search, setSearch] = useState("");
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -27,37 +29,59 @@ export default function AddToCollectionButton({ recipeId }: { recipeId: string }
     load();
   }, [open, recipeId, supabase]);
 
-  // Close on outside click
+  // Lock body scroll when open
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  function handleOverlayClick(e: React.MouseEvent) {
+    // Close if clicking outside the panel
+    if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      setOpen(false);
+      setSearch("");
+    }
+  }
 
   async function toggleCollection(collectionId: string) {
-    if (memberOf.has(collectionId)) {
+    // Optimistically update the UI
+    const wasMember = memberOf.has(collectionId);
+    setMemberOf((prev) => {
+      const next = new Set(prev);
+      if (wasMember) {
+        next.delete(collectionId);
+      } else {
+        next.add(collectionId);
+      }
+      return next;
+    });
+
+    // Then persist to DB
+    if (wasMember) {
       await supabase
         .from("collection_recipes")
         .delete()
         .eq("collection_id", collectionId)
         .eq("recipe_id", recipeId);
-      setMemberOf((prev) => { const next = new Set(prev); next.delete(collectionId); return next; });
     } else {
       await supabase
         .from("collection_recipes")
         .insert({ collection_id: collectionId, recipe_id: recipeId });
-      setMemberOf((prev) => new Set(prev).add(collectionId));
     }
   }
 
+  const filtered = collections.filter((col) =>
+    col.name.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted hover:border-accent hover:text-accent"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -66,46 +90,130 @@ export default function AddToCollectionButton({ recipeId }: { recipeId: string }
         Save to collection
       </button>
 
+      {/* Full-screen overlay */}
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 w-56 rounded-lg border border-border bg-white py-1 shadow-lg">
-          {loading ? (
-            <p className="px-4 py-3 text-xs text-muted">Loading...</p>
-          ) : collections.length === 0 ? (
-            <div className="px-4 py-3 text-xs text-muted">
-              No collections yet.{" "}
-              <a href="/collections/new" className="text-accent hover:underline">
-                Create one
-              </a>
-            </div>
-          ) : (
-            collections.map((col) => {
-              const isMember = memberOf.has(col.id);
-              return (
-                <button
-                  key={col.id}
-                  onClick={() => toggleCollection(col.id)}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-50"
+        <div
+          className="fixed inset-0 z-50 flex justify-center bg-black/30"
+          onClick={handleOverlayClick}
+        >
+          {/* Panel — same max-w as recipe page content, positioned below title area */}
+          <div
+            ref={panelRef}
+            className="mx-4 mt-28 mb-8 flex w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-white shadow-xl"
+          >
+            {/* Top bar: search + done button */}
+            <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+              <div className="relative flex-1">
+                <svg
+                  className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
                 >
-                  <span
-                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                      isMember
-                        ? "border-accent bg-accent text-white"
-                        : "border-border"
-                    }`}
-                  >
-                    {isMember && (
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                      </svg>
-                    )}
-                  </span>
-                  <span className="truncate">{col.name}</span>
-                </button>
-              );
-            })
-          )}
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search collections..."
+                  className="w-full rounded-md border border-border bg-background py-1.5 pl-9 pr-3 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  autoFocus
+                />
+              </div>
+              <button
+                onClick={() => { setOpen(false); setSearch(""); }}
+                className="shrink-0 rounded-md bg-accent px-3.5 py-1.5 text-sm font-medium text-white hover:bg-accent-dark transition-colors"
+              >
+                Done
+              </button>
+            </div>
+
+            {/* Grid content — scrollable */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {loading ? (
+                <p className="py-12 text-center text-sm text-muted">Loading collections...</p>
+              ) : filtered.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted">
+                  {collections.length === 0 ? (
+                    <>
+                      No collections yet.{" "}
+                      <a href="/collections/new" className="text-accent hover:underline">
+                        Create one
+                      </a>
+                    </>
+                  ) : (
+                    <>No collections matching &ldquo;{search}&rdquo;</>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  {filtered.map((col) => {
+                    const selected = memberOf.has(col.id);
+                    return (
+                      <button
+                        key={col.id}
+                        onClick={() => toggleCollection(col.id)}
+                        className="group relative overflow-hidden rounded-lg text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-accent"
+                      >
+                        {/* Square image */}
+                        <div className="relative aspect-square bg-accent-light">
+                          {col.cover_image_url ? (
+                            <Image
+                              src={col.cover_image_url}
+                              alt={col.name}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 640px) 33vw, 200px"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center">
+                              <svg
+                                className="h-8 w-8 text-accent/30"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={1}
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"
+                                />
+                              </svg>
+                            </div>
+                          )}
+
+                          {/* Selected overlay */}
+                          {selected && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <svg
+                                className="h-8 w-8 text-white"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={2.5}
+                                stroke="currentColor"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Name below image */}
+                        <p className="px-1.5 py-1.5 text-xs font-medium leading-tight truncate">
+                          {col.name}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
