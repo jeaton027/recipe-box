@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import RecipeGrid from "@/components/recipes/RecipeGrid";
 import DeleteCollectionButton from "./DeleteCollectionButton";
+import AddRecipeToCollectionButton from "@/components/collections/AddRecipeToCollectionButton";
 import type { Recipe } from "@/lib/types/database";
 
 export default async function CollectionDetailPage({
@@ -64,6 +65,7 @@ export default async function CollectionDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <AddRecipeToCollectionButton collectionId={id} />
           <Link
             href={`/collections/${id}/edit`}
             className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
