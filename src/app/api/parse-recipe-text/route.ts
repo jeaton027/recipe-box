@@ -23,23 +23,36 @@ function decodeHtml(str: string): string {
 
 function parseIngredientLine(str: string): {
   quantity: string | null;
+  quantity_max: string | null;
   unit: string | null;
   name: string;
 } {
   const clean = str.trim();
 
-  // Match quantity + unit + name: "1 1/2 cups all-purpose flour"
+  // Range + unit + name: "1-2 tsp sugar", "1/4-1/2 C flour"
+  const mr = clean.match(
+    /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
+  );
+  if (mr) return { quantity: mr[1].trim(), quantity_max: mr[2].trim(), unit: mr[3], name: decodeHtml(mr[4].trim()) };
+
+  // Range + name (no unit): "1-2 eggs"
+  const mr2 = clean.match(
+    /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+(.+)$/
+  );
+  if (mr2) return { quantity: mr2[1].trim(), quantity_max: mr2[2].trim(), unit: null, name: decodeHtml(mr2[3].trim()) };
+
+  // Single quantity + unit + name: "1 1/2 cups all-purpose flour"
   const m = clean.match(
     /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
   );
-  if (m) return { quantity: m[1].trim(), unit: m[2], name: decodeHtml(m[3].trim()) };
+  if (m) return { quantity: m[1].trim(), quantity_max: null, unit: m[2], name: decodeHtml(m[3].trim()) };
 
-  // Match quantity + name (no unit): "2 eggs"
+  // Single quantity + name (no unit): "2 eggs"
   const m2 = clean.match(/^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+(.+)$/);
-  if (m2) return { quantity: m2[1].trim(), unit: null, name: decodeHtml(m2[2].trim()) };
+  if (m2) return { quantity: m2[1].trim(), quantity_max: null, unit: null, name: decodeHtml(m2[2].trim()) };
 
   // Fallback: whole string as name
-  return { quantity: null, unit: null, name: decodeHtml(str) };
+  return { quantity: null, quantity_max: null, unit: null, name: decodeHtml(str) };
 }
 
 export async function POST(req: NextRequest) {
@@ -153,12 +166,12 @@ export async function POST(req: NextRequest) {
       // Check for divider: "For the crust" or "Sauce ingredients:"
       const forMatch = line.match(DIVIDER_FOR_THE);
       if (forMatch && !LOOKS_LIKE_INGREDIENT.test(line)) {
-        ingredients.push({ quantity: null, unit: "§", name: decodeHtml(forMatch[1].trim()) });
+        ingredients.push({ quantity: null, quantity_max: null, unit: "§", name: decodeHtml(forMatch[1].trim()) });
         continue;
       }
       const colonMatch = line.match(DIVIDER_COLON);
       if (colonMatch && !LOOKS_LIKE_INGREDIENT.test(line)) {
-        ingredients.push({ quantity: null, unit: "§", name: decodeHtml(colonMatch[1].trim()) });
+        ingredients.push({ quantity: null, quantity_max: null, unit: "§", name: decodeHtml(colonMatch[1].trim()) });
         continue;
       }
       ingredients.push(parseIngredientLine(line));

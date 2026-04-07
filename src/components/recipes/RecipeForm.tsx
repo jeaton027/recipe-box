@@ -50,7 +50,7 @@ function formatQtyForInput(value: number | null | undefined): string {
 }
 
 type IngredientItem =
-  | { kind: "ingredient"; name: string; quantity: string; unit: string }
+  | { kind: "ingredient"; name: string; quantity: string; quantityMax: string; showMax: boolean; unit: string }
   | { kind: "divider"; label: string };
 
 type StepItem =
@@ -73,14 +73,20 @@ function parseIngredientText(text: string): IngredientItem[] {
       items.push({ kind: "divider", label: cleaned.replace(/:$/, "").trim() });
       continue;
     }
+    // Range qty + unit + name: "1-2 tsp sugar" or "1/4-1/2 C flour"
+    const mr = cleaned.match(/^([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)\s+([a-zA-Z]+\.?)\s+(.+)$/);
+    if (mr) { items.push({ kind: "ingredient", quantity: mr[1].trim(), quantityMax: mr[2].trim(), showMax: true, unit: mr[3], name: mr[4].trim() }); continue; }
+    // Range qty + name (no unit): "1-2 eggs"
+    const mr2 = cleaned.match(/^([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)\s+(.+)$/);
+    if (mr2) { items.push({ kind: "ingredient", quantity: mr2[1].trim(), quantityMax: mr2[2].trim(), showMax: true, unit: "", name: mr2[3].trim() }); continue; }
     // Qty + unit + name
     const m = cleaned.match(/^([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)\s+([a-zA-Z]+\.?)\s+(.+)$/);
-    if (m) { items.push({ kind: "ingredient", quantity: m[1].trim(), unit: m[2], name: m[3].trim() }); continue; }
+    if (m) { items.push({ kind: "ingredient", quantity: m[1].trim(), quantityMax: "", showMax: false, unit: m[2], name: m[3].trim() }); continue; }
     // Qty + name (no unit)
     const m2 = cleaned.match(/^([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)\s+(.+)$/);
-    if (m2) { items.push({ kind: "ingredient", quantity: m2[1].trim(), unit: "", name: m2[2].trim() }); continue; }
+    if (m2) { items.push({ kind: "ingredient", quantity: m2[1].trim(), quantityMax: "", showMax: false, unit: "", name: m2[2].trim() }); continue; }
     // Fallback: whole line as name
-    items.push({ kind: "ingredient", quantity: "", unit: "", name: cleaned });
+    items.push({ kind: "ingredient", quantity: "", quantityMax: "", showMax: false, unit: "", name: cleaned });
   }
   return items;
 }
@@ -150,8 +156,8 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
     recipe?.ingredients?.map((i): IngredientItem =>
       i.unit === DIVIDER_MARKER
         ? { kind: "divider", label: i.name }
-        : { kind: "ingredient", name: i.name, quantity: formatQtyForInput(i.quantity), unit: i.unit ?? "" }
-    ) ?? [{ kind: "ingredient", name: "", quantity: "", unit: "" }]
+        : { kind: "ingredient", name: i.name, quantity: formatQtyForInput(i.quantity), quantityMax: formatQtyForInput(i.quantity_max), showMax: i.quantity_max !== null && i.quantity_max !== undefined, unit: i.unit ?? "" }
+    ) ?? [{ kind: "ingredient", name: "", quantity: "", quantityMax: "", showMax: false, unit: "" }]
   );
 
   const [steps, setSteps] = useState<StepItem[]>(
@@ -220,11 +226,11 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         setPrepTime(data.prep_time_minutes?.toString() ?? "");
         setCookTime(data.cook_time_minutes?.toString() ?? "");
         setIngredients(
-          data.ingredients?.map((i: { quantity: string | null; unit: string | null; name: string }): IngredientItem =>
+          data.ingredients?.map((i: { quantity: string | null; quantity_max: string | null; unit: string | null; name: string }): IngredientItem =>
             i.unit === DIVIDER_MARKER
               ? { kind: "divider", label: i.name }
-              : { kind: "ingredient", name: i.name, quantity: i.quantity ?? "", unit: i.unit ?? "" }
-          ) ?? [{ kind: "ingredient", name: "", quantity: "", unit: "" }]
+              : { kind: "ingredient", name: i.name, quantity: i.quantity ?? "", quantityMax: i.quantity_max ?? "", showMax: !!i.quantity_max, unit: i.unit ?? "" }
+          ) ?? [{ kind: "ingredient", name: "", quantity: "", quantityMax: "", showMax: false, unit: "" }]
         );
         setSteps(
           data.steps?.map((s: string): StepItem =>
@@ -265,7 +271,7 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
 
   // ── Ingredients ─────────────────────────────────────────────────────────────
   function addIngredient() {
-    setIngredients((prev) => [...prev, { kind: "ingredient", name: "", quantity: "", unit: "" }]);
+    setIngredients((prev) => [...prev, { kind: "ingredient", name: "", quantity: "", quantityMax: "", showMax: false, unit: "" }]);
   }
 
   function addIngredientDivider() {
@@ -276,11 +282,22 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
     setIngredients((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function updateIngredientField(index: number, field: "name" | "quantity" | "unit", value: string) {
+  function updateIngredientField(index: number, field: "name" | "quantity" | "quantityMax" | "unit", value: string) {
     setIngredients((prev) => {
       const updated = [...prev];
       const item = updated[index];
-      if (item.kind === "ingredient") updated[index] = { ...item, [field]: value };
+      if (item.kind !== "ingredient") return updated;
+
+      // Auto-split dash pattern in quantity field: "1-2" or "1/4-1/2"
+      if (field === "quantity" && !item.showMax) {
+        const rangeMatch = value.match(/^([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)$/);
+        if (rangeMatch) {
+          updated[index] = { ...item, quantity: rangeMatch[1].trim(), quantityMax: rangeMatch[2].trim(), showMax: true };
+          return updated;
+        }
+      }
+
+      updated[index] = { ...item, [field]: value };
       return updated;
     });
   }
@@ -415,8 +432,8 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
       await supabase.from("ingredients").insert(
         ingredientsToSave.map((item, idx) =>
           item.kind === "divider"
-            ? { recipe_id: recipeId!, name: item.label || " ", quantity: null, unit: DIVIDER_MARKER, sort_order: idx }
-            : { recipe_id: recipeId!, name: item.name.trim(), quantity: parseFraction(item.quantity), unit: item.unit.trim() || null, sort_order: idx }
+            ? { recipe_id: recipeId!, name: item.label || " ", quantity: null, quantity_max: null, unit: DIVIDER_MARKER, sort_order: idx }
+            : { recipe_id: recipeId!, name: item.name.trim(), quantity: parseFraction(item.quantity), quantity_max: parseFraction(item.quantityMax), unit: item.unit.trim() || null, sort_order: idx }
         ).filter((_, idx) => {
           const item = ingredientsToSave[idx];
           return item.kind === "divider" || (item as { name: string }).name.trim() !== "";
@@ -695,14 +712,31 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
                     <span {...ingredientGripHandlers(i)} className="relative z-20 cursor-grab touch-none text-muted hover:text-foreground">
                       <GripIcon />
                     </span>
-                    <input type="text" value={item.quantity}
-                      onChange={(e) => updateIngredientField(i, "quantity", e.target.value)}
-                      placeholder="Qty"
-                      className="w-20 rounded-md border border-border bg-white px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
+                    {/* Fixed-width qty area so Unit always aligns */}
+                    <div className="flex w-40 shrink-0 items-center gap-1 justify-end">
+                      {item.showMax ? (
+                        <>
+                          <input type="text" value={item.quantity}
+                            onChange={(e) => updateIngredientField(i, "quantity", e.target.value)}
+                            placeholder="Min"
+                            className="w-16 shrink-0 rounded-md border border-border bg-white px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
+                          <span className="text-xs text-muted shrink-0">–</span>
+                          <input type="text" value={item.quantityMax}
+                            onChange={(e) => updateIngredientField(i, "quantityMax", e.target.value)}
+                            placeholder="Max"
+                            className="w-16 shrink-0 rounded-md border border-border bg-white px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
+                        </>
+                      ) : (
+                        <input type="text" value={item.quantity}
+                          onChange={(e) => updateIngredientField(i, "quantity", e.target.value)}
+                          placeholder="Qty"
+                          className="w-16 shrink-0 rounded-md border border-border bg-white px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent ml-auto" />
+                      )}
+                    </div>
                     <input type="text" value={item.unit}
                       onChange={(e) => updateIngredientField(i, "unit", e.target.value)}
                       placeholder="Unit"
-                      className="w-20 rounded-md border border-border bg-white px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
+                      className="w-20 shrink-0 rounded-md border border-border bg-white px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
                     <input type="text" value={item.name}
                       onChange={(e) => updateIngredientField(i, "name", e.target.value)}
                       placeholder="Ingredient name"

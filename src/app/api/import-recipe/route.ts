@@ -95,15 +95,29 @@ export async function POST(req: NextRequest) {
     : [];
 
   const ingredients = rawIngredients.map((str) => {
-    // match: optional number/fraction, optional unit word, rest is name
+    // Range: "1-2 tsp sugar" or "1/4-1/2 C flour"
+    const mr = str.match(
+      /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
+    );
+    if (mr) {
+      return { quantity: mr[1].trim() || null, quantity_max: mr[2].trim() || null, unit: mr[3], name: mr[4] };
+    }
+    // Range without unit: "1-2 eggs"
+    const mr2 = str.match(
+      /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+(.+)$/
+    );
+    if (mr2) {
+      return { quantity: mr2[1].trim() || null, quantity_max: mr2[2].trim() || null, unit: null, name: mr2[3] };
+    }
+    // Single quantity: optional number/fraction, optional unit word, rest is name
     const m = str.match(
       /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
     );
     if (m) {
-      return { quantity: m[1].trim() || null, unit: m[2], name: m[3] };
+      return { quantity: m[1].trim() || null, quantity_max: null, unit: m[2], name: m[3] };
     }
     // backup: whole string as name
-    return { quantity: null, unit: null, name: str };
+    return { quantity: null, quantity_max: null, unit: null, name: str };
   });
 
   // 7)parse steps — handles flat HowToStep arrays AND nested HowToSection

@@ -21,6 +21,7 @@ export type Ingredient = {
   recipe_id: string;
   name: string;
   quantity: number | null;
+  quantity_max: number | null;
   unit: string | null;
   sort_order: number;
 };

@@ -125,7 +125,11 @@ export default function ServingsMultiplier({ servings, servingsType, ingredients
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
                 {ing.quantity !== null && (
                   <span className="font-medium whitespace-nowrap">
-                    {formatQuantity(ing.quantity * multiplier)} {ing.unit}
+                    {formatQuantity(ing.quantity * multiplier)}
+                    {ing.quantity_max !== null && ing.quantity_max !== undefined && (
+                      <>–{formatQuantity(ing.quantity_max * multiplier)}</>
+                    )}
+                    {" "}{ing.unit}
                   </span>
                 )}
                 <span>{ing.name}</span>
