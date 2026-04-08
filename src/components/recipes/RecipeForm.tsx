@@ -9,10 +9,22 @@ import type { RecipeWithDetails, Tag } from "@/lib/types/database";
 // § is used as a divider marker in the DB (unit field for ingredients, instruction prefix for steps)
 const DIVIDER_MARKER = "§";
 
-// Parse "1/3", "1 1/2", "2" etc. to decimal for DB storage
+// Map unicode fraction characters to their decimal values
+const UNICODE_FRACTIONS: Record<string, number> = {
+  "⅛": 1/8, "¼": 1/4, "⅓": 1/3, "⅜": 3/8, "½": 1/2,
+  "⅝": 5/8, "⅔": 2/3, "¾": 3/4, "⅞": 7/8,
+};
+
+// Replace unicode fractions with decimal equivalents before parsing
+function normalizeUnicodeFractions(str: string): string {
+  return str.replace(/[⅛¼⅓⅜½⅝⅔¾⅞]/g, (ch) => ` ${UNICODE_FRACTIONS[ch]}`);
+}
+
+// Parse "1/3", "1 1/2", "2", "½", "1 ¾" etc. to decimal for DB storage
 function parseFraction(str: string): number | null {
   if (!str.trim()) return null;
-  const parts = str.trim().split(/\s+/);
+  const normalized = normalizeUnicodeFractions(str);
+  const parts = normalized.trim().split(/\s+/);
   let result = 0;
   for (const part of parts) {
     if (part.includes("/")) {
