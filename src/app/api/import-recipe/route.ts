@@ -199,12 +199,41 @@ export async function POST(req: NextRequest) {
     ...metaImages,
   ])];
 
+  // 9) Extract bake temp and time from step text
+  const allStepText = steps.join(" ");
+
+  let bakeTemp: number | null = null;
+  let bakeTempUnit: string | null = null;
+  const tempMatch = allStepText.match(/preheat(?:\s+the)?(?:\s+oven)?\s+to\s+(\d+)\s*(?:°\s*|degrees?\s*)(F|C|fahrenheit|celsius)/i);
+  if (tempMatch) {
+    bakeTemp = parseInt(tempMatch[1]);
+    const rawUnit = tempMatch[2].toLowerCase();
+    bakeTempUnit = rawUnit.startsWith("c") ? "C" : "F";
+  }
+
+  let bakeTime: number | null = null;
+  let bakeTimeMax: number | null = null;
+  let bakeTimeUnit: string | null = null;
+  const timeMatch = allStepText.match(/bake\s+.*?for\s+(\d+)\s*(?:(?:to|[-–])\s*(\d+))?\s*(min(?:utes?)?|hrs?|hours?)/i);
+  if (timeMatch) {
+    bakeTime = parseInt(timeMatch[1]);
+    bakeTimeMax = timeMatch[2] ? parseInt(timeMatch[2]) : null;
+    const rawTimeUnit = timeMatch[3].toLowerCase();
+    bakeTimeUnit = rawTimeUnit.startsWith("h") ? "hr" : "min";
+  }
+
   return NextResponse.json({
     title: decodeHtml(String(schema.name ?? "")),
     description: decodeHtml(String(schema.description ?? "")),
     servings: parseServings(schema.recipeYield),
     prep_time_minutes: parseDuration(schema.prepTime),
     cook_time_minutes: parseDuration(schema.cookTime),
+    bake_time: bakeTime,
+    bake_time_max: bakeTimeMax,
+    bake_time_unit: bakeTimeUnit,
+    bake_temp: bakeTemp,
+    bake_temp_max: null,
+    bake_temp_unit: bakeTempUnit,
     images: allImages,
     ingredients: ingredients.map((i) => ({ ...i, name: decodeHtml(i.name), unit: i.unit ? decodeHtml(i.unit) : i.unit })),
     steps: steps.map((s) => decodeHtml(String(s))),

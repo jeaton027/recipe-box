@@ -5,7 +5,7 @@ import type { Recipe } from "@/lib/types/database";
 export default function RecipeListItem({ recipe }: { recipe: Recipe }) {
   return (
     <Link
-      href={`/recipes/${recipe.id}`}
+      href={`/recipes/${recipe.slug}`}
       className="block py-1 text-sm hover:text-gray-400 transition-colors"
     >
       <div className="min-w-0 flex-1">

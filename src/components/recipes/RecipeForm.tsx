@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter , useSearchParams} from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ImagePicker from "@/components/recipes/ImagePicker";
+import { generateUniqueSlug } from "@/lib/utils/slug";
 import type { RecipeWithDetails, Tag } from "@/lib/types/database";
 
 // § is used as a divider marker in the DB (unit field for ingredients, instruction prefix for steps)
@@ -154,6 +155,12 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   const [servingsType, setServingsType] = useState(recipe?.servings_type ?? "");
   const [prepTime, setPrepTime] = useState(recipe?.prep_time_minutes?.toString() ?? "");
   const [cookTime, setCookTime] = useState(recipe?.cook_time_minutes?.toString() ?? "");
+  const [bakeTime, setBakeTime] = useState(recipe?.bake_time?.toString() ?? "");
+  const [bakeTimeMax, setBakeTimeMax] = useState(recipe?.bake_time_max?.toString() ?? "");
+  const [bakeTimeUnit, setBakeTimeUnit] = useState(recipe?.bake_time_unit ?? "min");
+  const [bakeTemp, setBakeTemp] = useState(recipe?.bake_temp?.toString() ?? "");
+  const [bakeTempMax, setBakeTempMax] = useState(recipe?.bake_temp_max?.toString() ?? "");
+  const [bakeTempUnit, setBakeTempUnit] = useState(recipe?.bake_temp_unit ?? "F");
   const [notes, setNotes] = useState(recipe?.notes ?? "");
   const [sourceUrl, setSourceUrl] = useState(recipe?.source_url ?? "");
   const [isImageOnly, setIsImageOnly] = useState(
@@ -237,6 +244,12 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         setServings(data.servings?.toString() ?? "");
         setPrepTime(data.prep_time_minutes?.toString() ?? "");
         setCookTime(data.cook_time_minutes?.toString() ?? "");
+        if (data.bake_time) setBakeTime(data.bake_time.toString());
+        if (data.bake_time_max) setBakeTimeMax(data.bake_time_max.toString());
+        if (data.bake_time_unit) setBakeTimeUnit(data.bake_time_unit);
+        if (data.bake_temp) setBakeTemp(data.bake_temp.toString());
+        if (data.bake_temp_max) setBakeTempMax(data.bake_temp_max.toString());
+        if (data.bake_temp_unit) setBakeTempUnit(data.bake_temp_unit);
         setIngredients(
           data.ingredients?.map((i: { quantity: string | null; quantity_max: string | null; unit: string | null; name: string }): IngredientItem =>
             i.unit === DIVIDER_MARKER
@@ -405,14 +418,24 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setError("You must be logged in"); setSaving(false); return; }
 
+    // Generate slug (unique, updates on title change)
+    const slug = await generateUniqueSlug(title.trim(), recipe?.id);
+
     const recipeData = {
       user_id: user.id,
+      slug,
       title: title.trim(),
       description: description.trim() || null,
       servings: servings ? parseInt(servings) : null,
       servings_type: servingsType.trim() || null,
       prep_time_minutes: prepTime ? parseInt(prepTime) : null,
       cook_time_minutes: cookTime ? parseInt(cookTime) : null,
+      bake_time: bakeTime ? parseInt(bakeTime) : null,
+      bake_time_max: bakeTimeMax ? parseInt(bakeTimeMax) : null,
+      bake_time_unit: bakeTime ? bakeTimeUnit : null,
+      bake_temp: bakeTemp ? parseInt(bakeTemp) : null,
+      bake_temp_max: bakeTempMax ? parseInt(bakeTempMax) : null,
+      bake_temp_unit: bakeTemp ? bakeTempUnit : null,
       notes: notes.trim() || null,
       source_url: sourceUrl.trim() || null,
       thumbnail_url: thumbnailUrl || galleryImages[0] || null,
@@ -474,7 +497,7 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
       );
     }
 
-    router.push(`/recipes/${recipeId}`);
+    router.push(`/recipes/${slug}`);
     router.refresh();
   }
 
@@ -603,6 +626,65 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
           className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           placeholder="A brief description" />
+      </div>
+
+      {/* Bake for / at */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium">Bake for:</span>
+        <input
+          type="text"
+          value={bakeTime}
+          onChange={(e) => setBakeTime(e.target.value)}
+          placeholder="Time"
+          className="w-14 rounded-md border border-border bg-white px-2 py-1.5 text-sm text-center focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+        {bakeTime && (
+          <>
+            <span className="text-xs text-muted">–</span>
+            <input
+              type="text"
+              value={bakeTimeMax}
+              onChange={(e) => setBakeTimeMax(e.target.value)}
+              placeholder="Max"
+              className="w-14 rounded-md border border-border bg-white px-2 py-1.5 text-sm text-center focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => setBakeTimeUnit(bakeTimeUnit === "min" ? "hr" : "min")}
+          className="rounded-md border border-border bg-white px-2.5 py-1.5 text-sm font-medium text-muted hover:border-accent hover:text-accent transition-colors"
+        >
+          {bakeTimeUnit}
+        </button>
+        <span className="text-sm font-medium ml-2">at</span>
+        <input
+          type="text"
+          value={bakeTemp}
+          onChange={(e) => setBakeTemp(e.target.value)}
+          placeholder="Temp"
+          className="w-16 rounded-md border border-border bg-white px-2 py-1.5 text-sm text-center focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+        {bakeTemp && (
+          <>
+            <span className="text-xs text-muted">–</span>
+            <input
+              type="text"
+              value={bakeTempMax}
+              onChange={(e) => setBakeTempMax(e.target.value)}
+              placeholder="Max"
+              className="w-16 rounded-md border border-border bg-white px-2 py-1.5 text-sm text-center focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+          </>
+        )}
+        <span className="text-sm">°</span>
+        <button
+          type="button"
+          onClick={() => setBakeTempUnit(bakeTempUnit === "F" ? "C" : "F")}
+          className="rounded-md border border-border bg-white px-2.5 py-1.5 text-sm font-medium text-muted hover:border-accent hover:text-accent transition-colors"
+        >
+          {bakeTempUnit}
+        </button>
       </div>
 
       {/* Times & Servings */}

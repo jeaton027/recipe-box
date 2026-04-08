@@ -196,6 +196,29 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Extract bake temp and time from step text
+  const allStepText = steps.join(" ");
+
+  let bakeTemp: number | null = null;
+  let bakeTempUnit: string | null = null;
+  const tempMatch = allStepText.match(/preheat(?:\s+the)?(?:\s+oven)?\s+to\s+(\d+)\s*(?:°\s*|degrees?\s*)(F|C|fahrenheit|celsius)/i);
+  if (tempMatch) {
+    bakeTemp = parseInt(tempMatch[1]);
+    const rawUnit = tempMatch[2].toLowerCase();
+    bakeTempUnit = rawUnit.startsWith("c") ? "C" : "F";
+  }
+
+  let bakeTime: number | null = null;
+  let bakeTimeMax: number | null = null;
+  let bakeTimeUnit: string | null = null;
+  const timeMatch = allStepText.match(/bake\s+.*?for\s+(\d+)\s*(?:(?:to|[-–])\s*(\d+))?\s*(min(?:utes?)?|hrs?|hours?)/i);
+  if (timeMatch) {
+    bakeTime = parseInt(timeMatch[1]);
+    bakeTimeMax = timeMatch[2] ? parseInt(timeMatch[2]) : null;
+    const rawTimeUnit = timeMatch[3].toLowerCase();
+    bakeTimeUnit = rawTimeUnit.startsWith("h") ? "hr" : "min";
+  }
+
   return NextResponse.json({
     title,
     description: description || null,
@@ -203,6 +226,12 @@ export async function POST(req: NextRequest) {
     servings_type: servingsType || null,
     prep_time_minutes: prepTime,
     cook_time_minutes: cookTime,
+    bake_time: bakeTime,
+    bake_time_max: bakeTimeMax,
+    bake_time_unit: bakeTimeUnit,
+    bake_temp: bakeTemp,
+    bake_temp_max: null,
+    bake_temp_unit: bakeTempUnit,
     ingredients,
     steps,
     source_url: null,

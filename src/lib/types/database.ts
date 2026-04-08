@@ -1,6 +1,7 @@
 export type Recipe = {
   id: string;
   user_id: string;
+  slug: string;
   title: string;
   description: string | null;
   servings: number | null;
@@ -11,6 +12,12 @@ export type Recipe = {
   source_url: string | null;
   thumbnail_url: string | null;
   gallery_images: string[] | null;
+  bake_time: number | null;
+  bake_time_max: number | null;
+  bake_time_unit: string | null;
+  bake_temp: number | null;
+  bake_temp_max: number | null;
+  bake_temp_unit: string | null;
   is_image_only: boolean;
   created_at: string;
   updated_at: string;

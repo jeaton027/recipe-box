@@ -5,7 +5,13 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import type { Collection } from "@/lib/types/database";
 
-export default function AddToCollectionButton({ recipeId }: { recipeId: string }) {
+export default function AddToCollectionButton({
+  recipeId,
+  recipeThumbnail,
+}: {
+  recipeId: string;
+  recipeThumbnail?: string | null;
+}) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -13,6 +19,11 @@ export default function AddToCollectionButton({ recipeId }: { recipeId: string }
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // New collection inline form state
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [savingNew, setSavingNew] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -40,15 +51,22 @@ export default function AddToCollectionButton({ recipeId }: { recipeId: string }
   }, [open]);
 
   function handleOverlayClick(e: React.MouseEvent) {
-    // Close if clicking outside the panel
     if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
       setOpen(false);
       setSearch("");
+      setCreating(false);
+      setNewName("");
     }
   }
 
+  function handleClose() {
+    setOpen(false);
+    setSearch("");
+    setCreating(false);
+    setNewName("");
+  }
+
   async function toggleCollection(collectionId: string) {
-    // Optimistically update the UI
     const wasMember = memberOf.has(collectionId);
     setMemberOf((prev) => {
       const next = new Set(prev);
@@ -60,7 +78,6 @@ export default function AddToCollectionButton({ recipeId }: { recipeId: string }
       return next;
     });
 
-    // Then persist to DB
     if (wasMember) {
       await supabase
         .from("collection_recipes")
@@ -72,6 +89,39 @@ export default function AddToCollectionButton({ recipeId }: { recipeId: string }
         .from("collection_recipes")
         .insert({ collection_id: collectionId, recipe_id: recipeId });
     }
+  }
+
+  async function handleCreateCollection() {
+    if (!newName.trim()) return;
+    setSavingNew(true);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSavingNew(false); return; }
+
+    // Create the collection with the recipe's thumbnail as cover image
+    const { data: newCol, error } = await supabase
+      .from("collections")
+      .insert({
+        user_id: user.id,
+        name: newName.trim(),
+        cover_image_url: recipeThumbnail || null,
+      })
+      .select("*")
+      .single();
+
+    if (error || !newCol) { setSavingNew(false); return; }
+
+    // Add this recipe to the new collection
+    await supabase
+      .from("collection_recipes")
+      .insert({ collection_id: newCol.id, recipe_id: recipeId });
+
+    // Update local state
+    setCollections((prev) => [...prev, newCol]);
+    setMemberOf((prev) => new Set(prev).add(newCol.id));
+    setCreating(false);
+    setNewName("");
+    setSavingNew(false);
   }
 
   const filtered = collections.filter((col) =>
@@ -96,12 +146,11 @@ export default function AddToCollectionButton({ recipeId }: { recipeId: string }
           className="fixed inset-0 z-50 flex justify-center bg-black/30"
           onClick={handleOverlayClick}
         >
-          {/* Panel — same max-w as recipe page content, positioned below title area */}
           <div
             ref={panelRef}
             className="mx-4 mt-28 mb-8 flex w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-white shadow-xl"
           >
-            {/* Top bar: search + done button */}
+            {/* Top bar: search + new collection + done */}
             <div className="flex items-center gap-3 border-b border-border px-4 py-3">
               <div className="relative flex-1">
                 <svg
@@ -123,12 +172,46 @@ export default function AddToCollectionButton({ recipeId }: { recipeId: string }
                 />
               </div>
               <button
-                onClick={() => { setOpen(false); setSearch(""); }}
+                onClick={() => { setCreating(true); setSearch(""); }}
+                className="shrink-0 rounded-md bg-accent-soft px-3.5 py-1.5 text-sm font-medium text-accent-dark hover:bg-accent-light transition-colors"
+              >
+                New Collection
+              </button>
+              <button
+                onClick={handleClose}
                 className="shrink-0 rounded-md bg-accent px-3.5 py-1.5 text-sm font-medium text-white hover:bg-accent-dark transition-colors"
               >
                 Done
               </button>
             </div>
+
+            {/* Inline new collection form */}
+            {creating && (
+              <div className="flex items-center gap-3 border-b border-border bg-accent-light/30 px-4 py-3">
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleCreateCollection(); }}
+                  placeholder="Collection name..."
+                  autoFocus
+                  className="flex-1 rounded-md border border-border bg-white px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <button
+                  onClick={handleCreateCollection}
+                  disabled={!newName.trim() || savingNew}
+                  className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark transition-colors disabled:opacity-50"
+                >
+                  {savingNew ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={() => { setCreating(false); setNewName(""); }}
+                  className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
 
             {/* Grid content — scrollable */}
             <div className="flex-1 overflow-y-auto p-4">
@@ -137,12 +220,7 @@ export default function AddToCollectionButton({ recipeId }: { recipeId: string }
               ) : filtered.length === 0 ? (
                 <div className="py-12 text-center text-sm text-muted">
                   {collections.length === 0 ? (
-                    <>
-                      No collections yet.{" "}
-                      <a href="/collections/new" className="text-accent hover:underline">
-                        Create one
-                      </a>
-                    </>
+                    <>No collections yet. Click <strong>New Collection</strong> above to create one.</>
                   ) : (
                     <>No collections matching &ldquo;{search}&rdquo;</>
                   )}

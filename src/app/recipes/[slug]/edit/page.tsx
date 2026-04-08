@@ -6,15 +6,15 @@ import type { RecipeWithDetails } from "@/lib/types/database";
 export default async function EditRecipePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }) {
-  const { id } = await params;
+  const { slug } = await params;
   const supabase = await createClient();
 
   const { data: recipe } = await supabase
     .from("recipes")
     .select("*")
-    .eq("id", id)
+    .eq("slug", slug)
     .single();
 
   if (!recipe) notFound();
@@ -24,17 +24,17 @@ export default async function EditRecipePage({
       supabase
         .from("ingredients")
         .select("*")
-        .eq("recipe_id", id)
+        .eq("recipe_id", recipe.id)
         .order("sort_order"),
       supabase
         .from("steps")
         .select("*")
-        .eq("recipe_id", id)
+        .eq("recipe_id", recipe.id)
         .order("sort_order"),
       supabase
         .from("recipe_tags")
         .select("tag_id, tags(*)")
-        .eq("recipe_id", id),
+        .eq("recipe_id", recipe.id),
       supabase
         .from("tags")
         .select("*")

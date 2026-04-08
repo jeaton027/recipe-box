@@ -5,7 +5,7 @@ import type { Recipe } from "@/lib/types/database";
 export default function RecipeCard({ recipe }: { recipe: Recipe }) {
   return (
     <Link
-      href={`/recipes/${recipe.id}`}
+      href={`/recipes/${recipe.slug}`}
       className="group overflow-hidden rounded-lg border border-border bg-white transition-shadow hover:shadow-md"
     >
       <div className="relative aspect-[4/3] bg-gray-100">

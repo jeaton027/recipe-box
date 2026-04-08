@@ -10,15 +10,15 @@ import RecipeGallery from "@/components/recipes/RecipeGallery";
 export default async function RecipeDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }) {
-  const { id } = await params;
+  const { slug } = await params;
   const supabase = await createClient();
 
   const { data: recipe } = await supabase
     .from("recipes")
     .select("*")
-    .eq("id", id)
+    .eq("slug", slug)
     .single();
 
   if (!recipe) notFound();
@@ -28,17 +28,17 @@ export default async function RecipeDetailPage({
       supabase
         .from("ingredients")
         .select("*")
-        .eq("recipe_id", id)
+        .eq("recipe_id", recipe.id)
         .order("sort_order"),
       supabase
         .from("steps")
         .select("*")
-        .eq("recipe_id", id)
+        .eq("recipe_id", recipe.id)
         .order("sort_order"),
       supabase
         .from("recipe_tags")
         .select("tag_id, tags(*)")
-        .eq("recipe_id", id),
+        .eq("recipe_id", recipe.id),
     ]);
 
   const recipeTags = (tags?.map((t) => t.tags).filter(Boolean) ?? []) as unknown as { id: string; name: string }[];
@@ -56,14 +56,14 @@ export default async function RecipeDetailPage({
           )}
         </div>
         <div className="ml-4 flex flex-wrap items-center justify-end gap-2">
-          <AddToCollectionButton recipeId={id} />
+          <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
           <Link
-            href={`/recipes/${id}/edit`}
+            href={`/recipes/${recipe.slug}/edit`}
             className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
           >
             Edit
           </Link>
-          <DeleteRecipeButton recipeId={id} />
+          <DeleteRecipeButton recipeId={recipe.id} />
         </div>
       </div>
 
@@ -85,9 +85,9 @@ export default async function RecipeDetailPage({
         <RecipeGallery images={recipe.gallery_images} />
       )}
 
-      {/* Meta: servings + times */}
-      {(recipe.servings || recipe.prep_time_minutes || recipe.cook_time_minutes) && (
-        <div className="mb-6 flex flex-wrap gap-3 text-sm text-muted">
+      {/* Meta: servings + times + bake */}
+      {(recipe.servings || recipe.prep_time_minutes || recipe.cook_time_minutes || recipe.bake_temp) && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted">
           {recipe.servings && (
             <span className="flex gap-1">
               <strong className="text-foreground">{recipe.servings}</strong>{" "}
@@ -102,6 +102,25 @@ export default async function RecipeDetailPage({
           {recipe.cook_time_minutes && (
             <span className="flex gap-1">
               <strong className="text-foreground">{recipe.cook_time_minutes}</strong> min cook
+            </span>
+          )}
+          {(recipe.bake_time || recipe.bake_temp) && (
+            <span className="ml-auto flex gap-1 text-foreground font-medium">
+              {recipe.bake_time && (
+                <>
+                  {recipe.bake_time}
+                  {recipe.bake_time_max && <>–{recipe.bake_time_max}</>}
+                  {recipe.bake_time_unit || "min"}
+                </>
+              )}
+              {recipe.bake_time && recipe.bake_temp && " @ "}
+              {recipe.bake_temp && (
+                <>
+                  {recipe.bake_temp}
+                  {recipe.bake_temp_max && <>–{recipe.bake_temp_max}</>}
+                  °{recipe.bake_temp_unit || "F"}
+                </>
+              )}
             </span>
           )}
         </div>
