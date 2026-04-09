@@ -43,36 +43,52 @@ export default async function CollectionDetailPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <Link
-            href="/collections"
-            className="mb-1 flex items-center gap-1 text-xs font-medium text-muted hover:text-foreground"
-          >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-            </svg>
-            Collections
-          </Link>
-          <h1 className="font-heading text-2xl font-bold tracking-tight">
-            {collection.name}
-          </h1>
-          {collection.description && (
-            <p className="mt-1 text-sm text-muted">{collection.description}</p>
-          )}
-          <p className="mt-1 text-sm text-muted">
-            {recipes.length} {recipes.length === 1 ? "recipe" : "recipes"}
-          </p>
+      <div className="mb-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <Link
+              href="/collections"
+              className="mb-1 flex items-center gap-1 text-xs font-medium text-muted hover:text-foreground"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              </svg>
+              Collections
+            </Link>
+            <h1 className="font-heading text-2xl font-bold tracking-tight">
+              {collection.name}
+            </h1>
+            {collection.description && (
+              <p className="mt-1 text-sm text-muted">{collection.description}</p>
+            )}
+            <p className="mt-1 text-sm text-muted">
+              {recipes.length} {recipes.length === 1 ? "recipe" : "recipes"}
+            </p>
+          </div>
+          {/* Desktop buttons */}
+          <div className="hidden items-center gap-2 sm:flex">
+            <AddRecipeToCollectionButton collectionId={id} />
+            <Link
+              href={`/collections/${id}/edit`}
+              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
+            >
+              Edit
+            </Link>
+            <DeleteCollectionButton collectionId={id} />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <AddRecipeToCollectionButton collectionId={id} />
+        {/* Mobile buttons — Delete left, Edit middle, Add Recipe right (thumb-friendly) */}
+        <div className="mt-4 flex items-center gap-2 sm:hidden">
+          <DeleteCollectionButton collectionId={id} />
           <Link
             href={`/collections/${id}/edit`}
             className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
           >
             Edit
           </Link>
-          <DeleteCollectionButton collectionId={id} />
+          <div className="ml-auto">
+            <AddRecipeToCollectionButton collectionId={id} />
+          </div>
         </div>
       </div>
 

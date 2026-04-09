@@ -230,66 +230,61 @@ export default function SearchClient({
         <>
           <div
             className="fixed inset-0 z-40 bg-black/20"
-            onClick={() => setFilterOpen(false)}
+            onClick={handleApplyFilters}
           />
-          <div className="fixed bottom-0 left-0 right-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl md:bottom-auto md:left-auto md:right-6 md:top-24 md:w-80 md:rounded-xl">
-            <div className="mb-4 flex items-center justify-between">
+          <div className="fixed bottom-0 left-0 right-0 z-50 flex max-h-[80vh] flex-col rounded-t-2xl bg-white shadow-xl md:bottom-auto md:left-auto md:right-6 md:top-24 md:w-80 md:max-h-[70vh] md:rounded-xl">
+            {/* Sticky top bar */}
+            <div className="flex items-center justify-between border-b border-border px-6 py-3">
               <h2 className="font-heading text-lg font-semibold">Filter by tag</h2>
-              <button
-                onClick={() => setFilterOpen(false)}
-                className="text-muted hover:text-foreground"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setPendingTagIds([]);
+                    setFilterOpen(false);
+                    router.push(buildUrl(query, []));
+                  }}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:text-foreground"
+                >
+                  Clear
+                </button>
+                <button
+                  onClick={handleApplyFilters}
+                  className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
+                >
+                  Apply
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              {Object.entries(tagsByCategory).map(([category, categoryTags]) => (
-                <div key={category}>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                    {categoryLabels[category as TagCategory] ?? category}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {categoryTags.map((tag) => {
-                      const selected = pendingTagIds.includes(tag.id);
-                      return (
-                        <button
-                          key={tag.id}
-                          onClick={() => togglePendingTag(tag.id)}
-                          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                            selected
-                              ? "bg-accent text-white"
-                              : "bg-accent-light text-accent-dark hover:bg-accent/20"
-                          }`}
-                        >
-                          {tag.name}
-                        </button>
-                      );
-                    })}
+            {/* Scrollable tag content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+                {Object.entries(tagsByCategory).map(([category, categoryTags]) => (
+                  <div key={category}>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                      {categoryLabels[category as TagCategory] ?? category}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {categoryTags.map((tag) => {
+                        const selected = pendingTagIds.includes(tag.id);
+                        return (
+                          <button
+                            key={tag.id}
+                            onClick={() => togglePendingTag(tag.id)}
+                            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                              selected
+                                ? "bg-accent text-white"
+                                : "bg-accent-light text-accent-dark hover:bg-accent/20"
+                            }`}
+                          >
+                            {tag.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 flex gap-2">
-              <button
-                onClick={handleApplyFilters}
-                className="flex-1 rounded-md bg-accent py-2 text-sm font-medium text-white hover:bg-accent-dark"
-              >
-                Apply
-              </button>
-              <button
-                onClick={() => {
-                  setPendingTagIds([]);
-                  setFilterOpen(false);
-                  router.push(buildUrl(query, []));
-                }}
-                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground"
-              >
-                Clear
-              </button>
+                ))}
+              </div>
             </div>
           </div>
         </>

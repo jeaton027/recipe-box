@@ -132,11 +132,11 @@ export default async function TagBrowsePage({
           No recipes tagged with &ldquo;{tag.name}&rdquo; yet.
         </p>
       ) : isListView ? (
-        <ul className="mx-auto max-w-2xl grid grid-cols-2 gap-x-12 gap-y-1">
+        <div className="mx-auto max-w-2xl space-y-2 sm:grid sm:grid-cols-2 sm:gap-x-12 sm:gap-y-1 sm:space-y-0">
           {recipes.map((recipe) => (
-            <li key={recipe.id} className="flex items-center gap-2"><span className="text-foreground">•</span><RecipeListItem recipe={recipe} /></li>
+            <RecipeListItem key={recipe.id} recipe={recipe} />
           ))}
-        </ul>
+        </div>
       ) : (
         <RecipeGrid recipes={recipes} />
       )}

@@ -45,25 +45,41 @@ export default async function RecipeDetailPage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
-        <div className="flex-1">
-          <h1 className="font-heading text-3xl font-bold tracking-tight">
-            {recipe.title}
-          </h1>
-          {recipe.description && (
-            <p className="mt-2 text-muted">{recipe.description}</p>
-          )}
+      {/* Header — desktop: side-by-side, mobile: stacked */}
+      <div className="mb-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h1 className="font-heading text-3xl font-bold tracking-tight">
+              {recipe.title}
+            </h1>
+            {recipe.description && (
+              <p className="mt-2 text-muted">{recipe.description}</p>
+            )}
+          </div>
+          {/* Desktop buttons */}
+          <div className="ml-4 hidden items-center gap-2 sm:flex">
+            <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
+            <Link
+              href={`/recipes/${recipe.slug}/edit`}
+              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
+            >
+              Edit
+            </Link>
+            <DeleteRecipeButton recipeId={recipe.id} />
+          </div>
         </div>
-        <div className="ml-4 flex flex-wrap items-center justify-end gap-2">
-          <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
+        {/* Mobile buttons — Delete left, Edit middle, Save right (thumb-friendly) */}
+        <div className="mt-4 flex items-center gap-2 sm:hidden">
+          <DeleteRecipeButton recipeId={recipe.id} />
           <Link
             href={`/recipes/${recipe.slug}/edit`}
             className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
           >
             Edit
           </Link>
-          <DeleteRecipeButton recipeId={recipe.id} />
+          <div className="ml-auto">
+            <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
+          </div>
         </div>
       </div>
 
