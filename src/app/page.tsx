@@ -23,7 +23,7 @@ export default async function HomePage() {
           </p>
         </div>
         <Link
-          href="/recipes/new"
+          href="/recipes/import"
           className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark"
         >
           Add recipe
@@ -69,7 +69,7 @@ export default async function HomePage() {
             Start building your collection by adding your first recipe.
           </p>
           <Link
-            href="/recipes/new"
+            href="/recipes/import"
             className="mt-4 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark"
           >
             Add your first recipe
