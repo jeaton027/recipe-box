@@ -214,7 +214,7 @@ export default function AddRecipeToCollectionButton({
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex justify-center bg-black/30"
+          className="fixed inset-0 bottom-[60px] sm:bottom-0 z-50 flex justify-center bg-black/30"
           onClick={handleOverlayClick}
         >
           <div

@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { usePathname } from "next/navigation";
 
 const navLinks = [
   { href: "/recipes", label: "Recipes" },
@@ -13,14 +12,6 @@ const navLinks = [
 
 export default function Navbar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const supabase = createClient();
-
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  }
 
   return (
     <nav className="hidden border-b border-border bg-white md:block">
@@ -59,12 +50,19 @@ export default function Navbar() {
           })}
         </div>
 
-        <button
-          onClick={handleSignOut}
-          className="rounded-md px-3 py-2 text-sm font-medium text-muted hover:bg-gray-100 hover:text-foreground"
+        <Link
+          href="/profile"
+          className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+            pathname === "/profile"
+              ? "bg-accent-light text-accent-dark"
+              : "bg-gray-100 text-muted hover:bg-accent-light hover:text-accent-dark"
+          }`}
+          title="Profile"
         >
-          Sign out
-        </button>
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+          </svg>
+        </Link>
       </div>
     </nav>
   );

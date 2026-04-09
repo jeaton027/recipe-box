@@ -803,28 +803,28 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
                     {dragIngredientIndex !== null && dragIngredientIndex !== i && (
                       <div className="absolute inset-0 z-10" onDragOver={(e) => e.preventDefault()} />
                     )}
-                    <span {...ingredientGripHandlers(i)} className="relative z-20 cursor-grab touch-none text-muted hover:text-foreground">
+                    <span {...ingredientGripHandlers(i)} className="relative z-20 -mr-1 sm:mr-0 cursor-grab touch-none text-muted hover:text-foreground">
                       <GripIcon />
                     </span>
                     {/* Fixed-width qty area so Unit always aligns */}
-                    <div className="flex w-40 shrink-0 items-center gap-1 justify-end">
+                    <div className="flex w-24 sm:w-40 shrink-0 items-center gap-0.5 sm:gap-1 justify-end">
                       {item.showMax ? (
                         <>
                           <input type="text" value={item.quantity}
                             onChange={(e) => updateIngredientField(i, "quantity", e.target.value)}
                             placeholder="Min"
-                            className="w-16 shrink-0 rounded-md border border-border bg-white px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
+                            className="w-10 sm:w-16 shrink-0 rounded-md border border-border bg-white px-1 sm:px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
                           <span className="text-xs text-muted shrink-0">–</span>
                           <input type="text" value={item.quantityMax}
                             onChange={(e) => updateIngredientField(i, "quantityMax", e.target.value)}
                             placeholder="Max"
-                            className="w-16 shrink-0 rounded-md border border-border bg-white px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
+                            className="w-10 sm:w-16 shrink-0 rounded-md border border-border bg-white px-1 sm:px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
                         </>
                       ) : (
                         <input type="text" value={item.quantity}
                           onChange={(e) => updateIngredientField(i, "quantity", e.target.value)}
                           placeholder="Qty"
-                          className="w-16 shrink-0 rounded-md border border-border bg-white px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent ml-auto" />
+                          className="w-10 sm:w-16 shrink-0 rounded-md border border-border bg-white px-1 sm:px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent ml-auto" />
                       )}
                     </div>
                     <input type="text" value={item.unit}
