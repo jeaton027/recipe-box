@@ -234,6 +234,7 @@ export async function POST(req: NextRequest) {
     bake_temp: bakeTemp,
     bake_temp_max: null,
     bake_temp_unit: bakeTempUnit,
+    notes: schema.notes ? decodeHtml(String(schema.notes)) : null,
     images: allImages,
     ingredients: ingredients.map((i) => ({ ...i, name: decodeHtml(i.name), unit: i.unit ? decodeHtml(i.unit) : i.unit })),
     steps: steps.map((s) => decodeHtml(String(s))),

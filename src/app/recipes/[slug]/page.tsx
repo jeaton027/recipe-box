@@ -6,6 +6,8 @@ import DeleteRecipeButton from "./DeleteRecipeButton";
 import ServingsMultiplier from "@/components/recipes/ServingsMultiplier";
 import AddToCollectionButton from "@/components/collections/AddToCollectionButton";
 import RecipeGallery from "@/components/recipes/RecipeGallery";
+import VariationPills from "@/components/recipes/VariationPills";
+import CreateVariationButton from "@/components/recipes/CreateVariationButton";
 
 export default async function RecipeDetailPage({
   params,
@@ -23,7 +25,7 @@ export default async function RecipeDetailPage({
 
   if (!recipe) notFound();
 
-  const [{ data: ingredients }, { data: steps }, { data: tags }] =
+  const [{ data: ingredients }, { data: steps }, { data: tags }, { data: siblings }] =
     await Promise.all([
       supabase
         .from("ingredients")
@@ -39,14 +41,23 @@ export default async function RecipeDetailPage({
         .from("recipe_tags")
         .select("tag_id, tags(*)")
         .eq("recipe_id", recipe.id),
+      recipe.family_id
+        ? supabase
+            .from("recipes")
+            .select("id, slug, title, variant_label")
+            .eq("family_id", recipe.family_id)
+            .neq("id", recipe.id)
+            .order("created_at", { ascending: true })
+        : Promise.resolve({ data: [] as { id: string; slug: string; title: string; variant_label: string | null }[] }),
     ]);
 
   const recipeTags = (tags?.map((t) => t.tags).filter(Boolean) ?? []) as unknown as { id: string; name: string }[];
+  const siblingVariations = (siblings ?? []) as { id: string; slug: string; title: string; variant_label: string | null }[];
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
       {/* Header — desktop: side-by-side, mobile: stacked */}
-      <div className="mb-6">
+      <div className="mb-4">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <h1 className="font-heading text-3xl font-bold tracking-tight">
@@ -81,6 +92,12 @@ export default async function RecipeDetailPage({
             <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
           </div>
         </div>
+      </div>
+
+      {/* +Variation (left) and variation pills (right) — above thumbnail */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <CreateVariationButton recipeId={recipe.id} />
+        <VariationPills siblings={siblingVariations} />
       </div>
 
       {/* Thumbnail */}

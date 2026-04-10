@@ -19,6 +19,8 @@ export type Recipe = {
   bake_temp_max: number | null;
   bake_temp_unit: string | null;
   is_image_only: boolean;
+  family_id: string | null;
+  variant_label: string | null;
   created_at: string;
   updated_at: string;
 };

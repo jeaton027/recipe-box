@@ -4,6 +4,7 @@ const INGREDIENT_HEADERS = /^(ingredients?|what you('ll)? need):?$/i;
 const DIVIDER_FOR_THE = /^for\s+(?:the\s+)?(.+?)[:.]?\s*$/i;
 const DIVIDER_COLON = /^([^0-9]+):$/;
 const INSTRUCTION_HEADERS = /^(instructions?|directions?|steps?|method|preparation|how to (make|prepare)):?$/i;
+const NOTES_HEADERS = /^(notes?|tips?|tips?\s*&\s*notes?|notes?\s*&\s*tips?|recipe\s*notes?|chef'?s?\s*(?:notes?|tips?)|variations?|storage|to\s+store|substitutions?|make\s+ahead):?$/i;
 const META_SERVINGS = /^(?:makes?|serves?|yields?)\s+(?:about\s+)?(\d+)\s*(.*)/i;
 const META_PREP = /prep(?:\s+time)?:?\s*(\d+)\s*(?:hours?|hrs?|minutes?|mins?)/i;
 const META_COOK = /(?:cook|bake)(?:\s+time)?:?\s*(\d+)\s*(?:hours?|hrs?|minutes?|mins?)/i;
@@ -20,6 +21,9 @@ function decodeHtml(str: string): string {
     .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
     .replace(/&amp;/gi, "&");
 }
+
+// Common units for compact matching (no space between number and unit, e.g. "400g")
+const COMPACT_UNITS = "g|kg|ml|l|oz|lb|lbs|tsp|tbsp|cup|cups|c|T|t";
 
 function parseIngredientLine(str: string): {
   quantity: string | null;
@@ -40,6 +44,18 @@ function parseIngredientLine(str: string): {
     /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+(.+)$/
   );
   if (mr2) return { quantity: mr2[1].trim(), quantity_max: mr2[2].trim(), unit: null, name: decodeHtml(mr2[3].trim()) };
+
+  // Compact range + unit + name: "200-250g flour"
+  const mrc = clean.match(
+    new RegExp(`^([\\d.]+)\\s*[-–]\\s*([\\d.]+)\\s*(${COMPACT_UNITS})\\s+(.+)$`, "i")
+  );
+  if (mrc) return { quantity: mrc[1], quantity_max: mrc[2], unit: mrc[3], name: decodeHtml(mrc[4].trim()) };
+
+  // Compact quantity + unit + name: "400g flour", "2tbsp sugar", "1/2c milk"
+  const mc = clean.match(
+    new RegExp(`^([\\d.\\/⅛¼⅓⅜½⅝⅔¾⅞\\s]+?)\\s*(${COMPACT_UNITS})\\s+(.+)$`, "i")
+  );
+  if (mc) return { quantity: mc[1].trim(), quantity_max: null, unit: mc[2], name: decodeHtml(mc[3].trim()) };
 
   // Single quantity + unit + name: "1 1/2 cups all-purpose flour"
   const m = clean.match(
@@ -75,8 +91,9 @@ export async function POST(req: NextRequest) {
   let cookTime: number | null = null;
   const ingredients: ReturnType<typeof parseIngredientLine>[] = [];
   const steps: string[] = [];
+  const notesLines: string[] = [];
 
-  let section: "pre" | "ingredients" | "instructions" = "pre";
+  let section: "pre" | "ingredients" | "instructions" | "notes" = "pre";
 
   // First pass: check if there are any section headers
   let hasHeaders = false;
@@ -95,6 +112,10 @@ export async function POST(req: NextRequest) {
     }
     if (INSTRUCTION_HEADERS.test(line)) {
       section = "instructions";
+      continue;
+    }
+    if (NOTES_HEADERS.test(line)) {
+      section = "notes";
       continue;
     }
 
@@ -194,6 +215,11 @@ export async function POST(req: NextRequest) {
       const cleaned = line.replace(STEP_NUMBER, "").trim();
       if (cleaned) steps.push(decodeHtml(cleaned));
     }
+
+    // ── Notes section ──
+    if (section === "notes") {
+      notesLines.push(decodeHtml(line));
+    }
   }
 
   // Extract bake temp and time from step text
@@ -232,6 +258,7 @@ export async function POST(req: NextRequest) {
     bake_temp: bakeTemp,
     bake_temp_max: null,
     bake_temp_unit: bakeTempUnit,
+    notes: notesLines.length ? notesLines.join("\n") : null,
     ingredients,
     steps,
     source_url: null,

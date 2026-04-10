@@ -162,6 +162,10 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   const [bakeTempMax, setBakeTempMax] = useState(recipe?.bake_temp_max?.toString() ?? "");
   const [bakeTempUnit, setBakeTempUnit] = useState(recipe?.bake_temp_unit ?? "F");
   const [notes, setNotes] = useState(recipe?.notes ?? "");
+  const [variantLabel, setVariantLabel] = useState(recipe?.variant_label ?? "");
+  // If this is a new recipe being created as a variation, tracks the source
+  // recipe's ID so we can lazily assign a family_id on first save.
+  const [variationSourceId, setVariationSourceId] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState(recipe?.source_url ?? "");
   const [isImageOnly, setIsImageOnly] = useState(
     recipe?.is_image_only ?? searchParams.get("imageOnly") === "true"
@@ -264,12 +268,73 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
               : { kind: "step", instruction: s }
           ) ?? [{ kind: "step", instruction: "" }]
         );
+        if (data.notes) setNotes(data.notes);
         setSourceUrl(data.source_url ?? "");
         if (data.images?.length) {
           setImportedImages(data.images);
           setGalleryImages([data.images[0]]);
           setThumbnailUrl(data.images[0]);
         }
+      }
+    } else if (searchParams.get("source") === "variation") {
+      // Loading a variation draft — no DB writes have occurred yet. The
+      // source recipe's data was placed in sessionStorage by the
+      // CreateVariationButton. We materialize everything into form state,
+      // and only commit to the DB when the user clicks Save.
+      const raw = sessionStorage.getItem("variationRecipe");
+      if (raw) {
+        const data = JSON.parse(raw);
+        sessionStorage.removeItem("variationRecipe");
+        setTitle(data.title ?? "");
+        setDescription(data.description ?? "");
+        setServings(data.servings?.toString() ?? "");
+        setServingsType(data.servings_type ?? "");
+        setPrepTime(data.prep_time_minutes?.toString() ?? "");
+        setCookTime(data.cook_time_minutes?.toString() ?? "");
+        if (data.bake_time) setBakeTime(data.bake_time.toString());
+        if (data.bake_time_max) setBakeTimeMax(data.bake_time_max.toString());
+        if (data.bake_time_unit) setBakeTimeUnit(data.bake_time_unit);
+        if (data.bake_temp) setBakeTemp(data.bake_temp.toString());
+        if (data.bake_temp_max) setBakeTempMax(data.bake_temp_max.toString());
+        if (data.bake_temp_unit) setBakeTempUnit(data.bake_temp_unit);
+        if (data.notes) setNotes(data.notes);
+        setSourceUrl(data.source_url ?? "");
+        setIsImageOnly(!!data.is_image_only);
+        // Ingredients arrive in DB shape: { name, quantity, quantity_max, unit, sort_order }
+        setIngredients(
+          data.ingredients?.length
+            ? data.ingredients.map((i: { quantity: number | null; quantity_max: number | null; unit: string | null; name: string }): IngredientItem =>
+                i.unit === DIVIDER_MARKER
+                  ? { kind: "divider", label: i.name }
+                  : { kind: "ingredient", name: i.name, quantity: formatQtyForInput(i.quantity), quantityMax: formatQtyForInput(i.quantity_max), showMax: i.quantity_max !== null && i.quantity_max !== undefined, unit: i.unit ?? "" }
+              )
+            : [{ kind: "ingredient", name: "", quantity: "", quantityMax: "", showMax: false, unit: "" }]
+        );
+        // Steps arrive in DB shape: { instruction, sort_order }
+        setSteps(
+          data.steps?.length
+            ? data.steps.map((s: { instruction: string }): StepItem =>
+                s.instruction.startsWith(DIVIDER_MARKER)
+                  ? { kind: "divider", label: s.instruction.slice(1) }
+                  : { kind: "step", instruction: s.instruction }
+              )
+            : [{ kind: "step", instruction: "" }]
+        );
+        if (data.tag_ids?.length) setSelectedTagIds(data.tag_ids);
+        // Images
+        if (data.thumbnail_url) setThumbnailUrl(data.thumbnail_url);
+        if (data.gallery_images?.length) {
+          setGalleryImages(data.gallery_images);
+          const thumb = data.thumbnail_url;
+          const allImages = thumb && !data.gallery_images.includes(thumb)
+            ? [...data.gallery_images, thumb]
+            : [...data.gallery_images];
+          setImportedImages(allImages);
+        } else if (data.thumbnail_url) {
+          setImportedImages([data.thumbnail_url]);
+        }
+        // Remember the source recipe so we can lazily assign family_id on save
+        if (data._variationSourceId) setVariationSourceId(data._variationSourceId);
       }
     }
   }, []);
@@ -421,6 +486,39 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
     // Generate slug (unique, updates on title change)
     const slug = await generateUniqueSlug(title.trim(), recipe?.id);
 
+    // Resolve family_id:
+    // - Editing an existing recipe → preserve its family_id
+    // - New recipe from "+ Variation" → use the source's family_id, creating
+    //   one lazily on the source if it doesn't have one yet
+    // - Regular new recipe → no family_id
+    let familyId: string | null = recipe?.family_id ?? null;
+    if (!isEditing && variationSourceId) {
+      const { data: sourceRow, error: srcErr } = await supabase
+        .from("recipes")
+        .select("family_id")
+        .eq("id", variationSourceId)
+        .single();
+      if (srcErr || !sourceRow) {
+        setError("Couldn't find source recipe for variation");
+        setSaving(false);
+        return;
+      }
+      if (sourceRow.family_id) {
+        familyId = sourceRow.family_id;
+      } else {
+        familyId = crypto.randomUUID();
+        const { error: famErr } = await supabase
+          .from("recipes")
+          .update({ family_id: familyId })
+          .eq("id", variationSourceId);
+        if (famErr) {
+          setError(famErr.message);
+          setSaving(false);
+          return;
+        }
+      }
+    }
+
     const recipeData = {
       user_id: user.id,
       slug,
@@ -437,10 +535,12 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
       bake_temp_max: bakeTempMax ? parseInt(bakeTempMax) : null,
       bake_temp_unit: bakeTemp ? bakeTempUnit : null,
       notes: notes.trim() || null,
+      variant_label: variantLabel.trim() || null,
       source_url: sourceUrl.trim() || null,
       thumbnail_url: thumbnailUrl || galleryImages[0] || null,
       gallery_images: galleryImages.length > 0 ? galleryImages : null,
       is_image_only: isImageOnly,
+      family_id: familyId,
     };
 
     let recipeId = recipe?.id;
@@ -585,6 +685,22 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
           className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           placeholder="Recipe name" />
       </div>
+
+      {/* Variation label — only shown for recipes that are part of a family */}
+      {(recipe?.family_id || variationSourceId || variantLabel) && (
+        <div>
+          <label htmlFor="variant_label" className="block text-sm font-medium">
+            Variation label
+          </label>
+          <input id="variant_label" type="text" value={variantLabel} onChange={(e) => setVariantLabel(e.target.value)}
+            className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            placeholder="e.g. GF, Pork, Chicken" />
+          <p className="mt-1 text-xs text-muted">
+            A short label to distinguish between variations.
+          </p>
+        </div>
+      )}
+
 
       {/* Image-only mode is set via URL param ?imageOnly=true */}
 
