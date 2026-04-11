@@ -8,6 +8,7 @@ import AddToCollectionButton from "@/components/collections/AddToCollectionButto
 import RecipeGallery from "@/components/recipes/RecipeGallery";
 import VariationPills from "@/components/recipes/VariationPills";
 import CreateVariationButton from "@/components/recipes/CreateVariationButton";
+import CompareButton from "@/components/recipes/CompareButton";
 
 export default async function RecipeDetailPage({
   params,
@@ -94,9 +95,18 @@ export default async function RecipeDetailPage({
         </div>
       </div>
 
-      {/* +Variation (left) and variation pills (right) — above thumbnail */}
+      {/* +Variation and Compare (left) and variation pills (right) — above thumbnail */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <CreateVariationButton recipeId={recipe.id} />
+        <div className="flex items-center gap-2">
+          <CreateVariationButton recipeId={recipe.id} />
+          <CompareButton
+            currentRecipeId={recipe.id}
+            currentRecipeSlug={recipe.slug}
+            currentRecipeTitle={recipe.title}
+            currentRecipeThumbnail={recipe.thumbnail_url}
+            familyId={recipe.family_id}
+          />
+        </div>
         <VariationPills siblings={siblingVariations} />
       </div>
 
@@ -118,15 +128,9 @@ export default async function RecipeDetailPage({
         <RecipeGallery images={recipe.gallery_images} />
       )}
 
-      {/* Meta: servings + times + bake */}
-      {(recipe.servings || recipe.prep_time_minutes || recipe.cook_time_minutes || recipe.bake_temp) && (
+      {/* Meta: times + bake (servings live with the ingredients multiplier) */}
+      {(recipe.prep_time_minutes || recipe.cook_time_minutes || recipe.bake_temp) && (
         <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted">
-          {recipe.servings && (
-            <span className="flex gap-1">
-              <strong className="text-foreground">{recipe.servings}</strong>{" "}
-              {recipe.servings_type || "servings"}
-            </span>
-          )}
           {recipe.prep_time_minutes && (
             <span className="flex gap-1">
               <strong className="text-foreground">{recipe.prep_time_minutes}</strong> min prep
