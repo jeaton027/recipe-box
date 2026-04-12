@@ -275,6 +275,10 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
           setGalleryImages([data.images[0]]);
           setThumbnailUrl(data.images[0]);
         }
+        // If this import was triggered from the + Variation split button,
+        // the source recipe ID is embedded so the family link is created
+        // when the user saves (same lazy family_id logic as "create by copy").
+        if (data._variationSourceId) setVariationSourceId(data._variationSourceId);
       }
     } else if (searchParams.get("source") === "variation") {
       // Loading a variation draft — no DB writes have occurred yet. The

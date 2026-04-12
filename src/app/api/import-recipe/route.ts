@@ -1,6 +1,8 @@
 // fetches and parses
 import { NextRequest, NextResponse } from "next/server";
 
+const NOTES_MAX_CHARS = 2000;
+
 function decodeHtml(str: string): string {
   return str
     .replace(/&quot;/gi, '"')
@@ -10,6 +12,168 @@ function decodeHtml(str: string): string {
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
     .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
     .replace(/&amp;/gi, "&");
+}
+
+// Convert a snippet of HTML into plain text with lightweight markdown:
+// bullet (`- `) for <ul>/<li>, numbered for <ol>/<li>, paragraphs get
+// double newlines, <br> becomes single newline. All other tags are stripped
+// but their inner text is preserved.
+function htmlToMarkdown(html: string): string {
+  let out = html.replace(/\r\n/g, "\n");
+
+  // <br> → newline
+  out = out.replace(/<br\s*\/?>/gi, "\n");
+
+  // <ul>...</ul> → "- item\n- item"
+  out = out.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, inner: string) => {
+    const items = inner
+      .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_m: string, item: string) => {
+        const cleaned = item.replace(/<[^>]+>/g, "").trim();
+        return cleaned ? `- ${cleaned}\n` : "";
+      })
+      // drop anything outside <li>...</li>
+      .replace(/(?:^|\n)(?!- )[^\n]*/g, "");
+    return `\n${items}\n`;
+  });
+
+  // <ol>...</ol> → "1. item\n2. item"
+  out = out.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, inner: string) => {
+    let n = 0;
+    const items = inner
+      .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_m: string, item: string) => {
+        const cleaned = item.replace(/<[^>]+>/g, "").trim();
+        if (!cleaned) return "";
+        n++;
+        return `${n}. ${cleaned}\n`;
+      })
+      .replace(/(?:^|\n)(?!\d+\. )[^\n]*/g, "");
+    return `\n${items}\n`;
+  });
+
+  // <p>text</p> → text + blank line
+  out = out.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (_, inner: string) => {
+    return `${inner.trim()}\n\n`;
+  });
+
+  // Strip any remaining tags
+  out = out.replace(/<[^>]+>/g, "");
+
+  // Decode entities and tidy whitespace
+  out = decodeHtml(out);
+  out = out.replace(/[ \t]+/g, " "); // collapse runs of spaces
+  out = out.replace(/[ \t]*\n[ \t]*/g, "\n"); // trim around newlines
+  out = out.replace(/\n{3,}/g, "\n\n"); // max one blank line
+
+  return out.trim();
+}
+
+// Walks forward from an opening <div> tag counting <div>/</div> to find
+// the matching close — more robust than a naive non-greedy regex when the
+// notes container has nested elements.
+function extractContainerByClass(html: string, className: string): string | null {
+  const openRegex = new RegExp(
+    `<div[^>]*class="[^"]*\\b${className}\\b[^"]*"[^>]*>`,
+    "i"
+  );
+  const openMatch = openRegex.exec(html);
+  if (!openMatch) return null;
+
+  const start = openMatch.index + openMatch[0].length;
+  let depth = 1;
+  let i = start;
+  while (i < html.length) {
+    const nextOpen = html.toLowerCase().indexOf("<div", i);
+    const nextClose = html.toLowerCase().indexOf("</div>", i);
+    if (nextClose === -1) return null;
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth++;
+      i = nextOpen + 4;
+    } else {
+      depth--;
+      if (depth === 0) {
+        return html.slice(start, nextClose);
+      }
+      i = nextClose + 6;
+    }
+  }
+  return null;
+}
+
+// Layer 1: look for notes in non-standard JSON-LD fields.
+// Schema.org Recipe doesn't define a `notes` property, but some sites /
+// plugins include one under `recipeNotes`, or inside `additionalProperty`
+// as `[{ name: "Notes", value: "..." }, ...]`.
+function extractNotesFromSchema(
+  schema: Record<string, unknown>
+): string | null {
+  // `recipeNotes` — string or array of strings
+  const rn = schema.recipeNotes;
+  if (typeof rn === "string" && rn.trim()) return rn.trim();
+  if (Array.isArray(rn)) {
+    const joined = rn
+      .filter((n): n is string => typeof n === "string")
+      .join("\n")
+      .trim();
+    if (joined) return joined;
+  }
+
+  // `additionalProperty` with a `name` of Notes/Tips/etc.
+  if (Array.isArray(schema.additionalProperty)) {
+    for (const prop of schema.additionalProperty) {
+      if (typeof prop === "object" && prop !== null) {
+        const p = prop as Record<string, unknown>;
+        const name =
+          typeof p.name === "string" ? p.name.toLowerCase().trim() : "";
+        const matches =
+          name === "notes" ||
+          name === "tips" ||
+          name === "recipe notes" ||
+          name === "recipe tips" ||
+          name === "cook's notes" ||
+          name === "chef's notes";
+        if (matches && typeof p.value === "string" && p.value.trim()) {
+          return p.value.trim();
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+// Layer 2: scrape known recipe-plugin DOM containers. These classes are
+// stable even when the displayed heading is "Tips" instead of "Notes".
+const PLUGIN_NOTES_CLASSES = [
+  "wprm-recipe-notes", // WP Recipe Maker
+  "tasty-recipes-notes-body", // Tasty Recipes (body before container to prefer inner)
+  "tasty-recipes-notes",
+  "mv-create-notes-content", // Mediavine Create
+  "mv-create-notes",
+  "recipe-card-notes", // Recipe Card Blocks
+];
+
+function extractNotesFromHtml(html: string): string | null {
+  for (const cls of PLUGIN_NOTES_CLASSES) {
+    const inner = extractContainerByClass(html, cls);
+    if (inner && inner.trim()) return inner;
+  }
+  return null;
+}
+
+// Top-level note extractor: layer 1 first, then layer 2. Hard-fails to
+// null if the processed markdown exceeds NOTES_MAX_CHARS (we almost
+// certainly grabbed the wrong chunk of the page).
+function extractNotes(
+  schema: Record<string, unknown>,
+  html: string
+): string | null {
+  const raw =
+    extractNotesFromSchema(schema) ?? extractNotesFromHtml(html) ?? null;
+  if (!raw) return null;
+  const processed = htmlToMarkdown(raw);
+  if (!processed) return null;
+  if (processed.length > NOTES_MAX_CHARS) return null;
+  return processed;
 }
 
 export async function POST(req: NextRequest) {
@@ -234,7 +398,7 @@ export async function POST(req: NextRequest) {
     bake_temp: bakeTemp,
     bake_temp_max: null,
     bake_temp_unit: bakeTempUnit,
-    notes: schema.notes ? decodeHtml(String(schema.notes)) : null,
+    notes: extractNotes(schema, html),
     images: allImages,
     ingredients: ingredients.map((i) => ({ ...i, name: decodeHtml(i.name), unit: i.unit ? decodeHtml(i.unit) : i.unit })),
     steps: steps.map((s) => decodeHtml(String(s))),

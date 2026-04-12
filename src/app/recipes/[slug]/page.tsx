@@ -98,7 +98,11 @@ export default async function RecipeDetailPage({
       {/* +Variation and Compare (left) and variation pills (right) — above thumbnail */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <CreateVariationButton recipeId={recipe.id} />
+          <CreateVariationButton
+            recipeId={recipe.id}
+            familyId={recipe.family_id}
+            siblingIds={siblingVariations.map((s) => s.id)}
+          />
           <CompareButton
             currentRecipeId={recipe.id}
             currentRecipeSlug={recipe.slug}
