@@ -10,9 +10,9 @@ type Props = {
 export default function RecipeGallery({ images }: Props) {
   const [open, setOpen] = useState(false);
 
-  if (images.length === 0) return null;
+  if (images.length === 0 || images.length === 1) return null;
 
-  const preview = images.slice(0, 4);
+  const preview = images.slice(1, 4);
 
   return (
     <>

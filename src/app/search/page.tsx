@@ -1,15 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import SearchClient from "@/components/search/SearchClient";
-import type { Recipe, Tag } from "@/lib/types/database";
+import type { Recipe } from "@/lib/types/database";
 
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; tags?: string }>;
+  searchParams: Promise<{ q?: string; tags?: string; status?: string }>;
 }) {
-  const { q, tags: tagsParam } = await searchParams;
+  const { q, tags: tagsParam, status: statusParam } = await searchParams;
   const query = q?.trim() ?? "";
   const selectedTagIds = tagsParam ? tagsParam.split(",").filter(Boolean) : [];
+  const statusFilter = statusParam ?? "";
 
   const supabase = await createClient();
 
@@ -72,18 +73,30 @@ export default async function SearchPage({
         : intersected;
   }
 
+  // If status filter is set but no other filters, query all recipes with that status
+  if (statusFilter && recipeIds === null) {
+    let q = supabase.from("recipes").select("id");
+    if (statusFilter === "tried") q = q.in("status", ["tried", "favorite"]);
+    else if (statusFilter === "favorite") q = q.eq("status", "favorite");
+    const { data } = await q;
+    recipeIds = data?.map((r) => r.id) ?? [];
+  }
+
   // Fetch final recipes
   let recipes: Recipe[] = [];
   if (recipeIds !== null && recipeIds.length > 0) {
-    const { data } = await supabase
+    let q = supabase
       .from("recipes")
       .select("*")
       .in("id", recipeIds)
       .order("title");
+    if (statusFilter === "tried") q = q.in("status", ["tried", "favorite"]);
+    else if (statusFilter === "favorite") q = q.eq("status", "favorite");
+    const { data } = await q;
     recipes = data ?? [];
   }
 
-  // Sort: title matches first, then the rest alphabetically //TODO change priority after title matches
+  // Sort: title matches first, then the rest alphabetically
   if (query && recipes.length > 0) {
     const q = query.toLowerCase();
     recipes = recipes.sort((a, b) => {
@@ -99,6 +112,8 @@ export default async function SearchPage({
       allTags={allTags ?? []}
       initialQuery={query}
       initialTagIds={selectedTagIds}
+      initialStatus={statusFilter}
+      pageTitle="Search"
     />
   );
 }

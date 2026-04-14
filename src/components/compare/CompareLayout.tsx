@@ -150,7 +150,7 @@ export default function CompareLayout({ recipes }: { recipes: CompareData[] }) {
                 >
                   {scaledServings !== null ? (
                     <span className="text-sm text-muted">
-                      {scaledServings} {recipe.servings_type || "servings"}
+                      <strong className="text-foreground">{scaledServings}</strong> {recipe.servings_type || "servings"}
                     </span>
                   ) : (
                     <span />

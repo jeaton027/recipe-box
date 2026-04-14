@@ -9,6 +9,9 @@ import RecipeGallery from "@/components/recipes/RecipeGallery";
 import VariationPills from "@/components/recipes/VariationPills";
 import CreateVariationButton from "@/components/recipes/CreateVariationButton";
 import CompareButton from "@/components/recipes/CompareButton";
+import MoreFromSource from "@/components/recipes/MoreFromSource";
+import RecipeStatusToggle from "@/components/recipes/RecipeStatusToggle";
+import TagPills from "@/components/recipes/TagPills";
 
 export default async function RecipeDetailPage({
   params,
@@ -52,7 +55,7 @@ export default async function RecipeDetailPage({
         : Promise.resolve({ data: [] as { id: string; slug: string; title: string; variant_label: string | null }[] }),
     ]);
 
-  const recipeTags = (tags?.map((t) => t.tags).filter(Boolean) ?? []) as unknown as { id: string; name: string }[];
+  const recipeTags = (tags?.map((t) => t.tags).filter(Boolean) ?? []) as unknown as { id: string; name: string; category: string }[];
   const siblingVariations = (siblings ?? []) as { id: string; slug: string; title: string; variant_label: string | null }[];
 
   return (
@@ -61,9 +64,15 @@ export default async function RecipeDetailPage({
       <div className="mb-4">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <h1 className="font-heading text-3xl font-bold tracking-tight">
-              {recipe.title}
-            </h1>
+            <div className="flex items-start gap-2">
+              <h1 className="font-heading text-3xl font-bold tracking-tight">
+                {recipe.title}
+              </h1>
+              <RecipeStatusToggle
+                recipeId={recipe.id}
+                initialStatus={recipe.status ?? "saved"}
+              />
+            </div>
             {recipe.description && (
               <p className="mt-2 text-muted">{recipe.description}</p>
             )}
@@ -151,7 +160,7 @@ export default async function RecipeDetailPage({
                 <>
                   {recipe.bake_time}
                   {recipe.bake_time_max && <>–{recipe.bake_time_max}</>}
-                  {recipe.bake_time_unit || "min"}
+                  {" "}{recipe.bake_time_unit || "min"}
                 </>
               )}
               {recipe.bake_time && recipe.bake_temp && " @ "}
@@ -167,20 +176,8 @@ export default async function RecipeDetailPage({
         </div>
       )}
 
-      {/* Tags */}
-      {recipeTags.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-1.5">
-          {recipeTags.map((tag: { id: string; name: string }) => (
-            <Link
-              key={tag.id}
-              href={`/browse/${tag.id}`}
-              className="rounded-full bg-accent-light px-3 py-1 text-xs font-medium text-accent-dark hover:bg-accent hover:text-white transition-colors"
-            >
-              {tag.name}
-            </Link>
-          ))}
-        </div>
-      )}
+      {/* Tags — top 4 by specificity, rest collapsed */}
+      <TagPills tags={recipeTags} />
 
       {/* Ingredients with multiplier */}
       {ingredients && ingredients.length > 0 && (
@@ -230,25 +227,33 @@ export default async function RecipeDetailPage({
       {recipe.notes && (
         <section className="mb-8">
           <h2 className="font-heading mb-3 text-xl font-semibold">Notes</h2>
-          <div className="rounded-lg bg-accent-light/50 p-4 text-sm leading-relaxed">
+          <div className="rounded-lg bg-accent-light/50 p-4 text-sm leading-relaxed whitespace-pre-line">
             {recipe.notes}
           </div>
         </section>
       )}
 
-      {/* Source */}
+      {/* Source + more from this creator */}
       {recipe.source_url && (
-        <p className="text-sm text-muted">
-          Source:{" "}
-          <a
-            href={recipe.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent hover:text-accent-dark"
-          >
-            {new URL(recipe.source_url).hostname}
-          </a>
-        </p>
+        <div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="text-sm text-muted">
+              Source:{" "}
+              <a
+                href={recipe.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:text-accent-dark"
+              >
+                {new URL(recipe.source_url).hostname}
+              </a>
+            </p>
+            <MoreFromSource
+              sourceHostname={new URL(recipe.source_url).hostname}
+              currentRecipeId={recipe.id}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

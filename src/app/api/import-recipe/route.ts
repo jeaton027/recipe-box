@@ -254,11 +254,71 @@ export async function POST(req: NextRequest) {
   }
 
   // 6) parse ingredients — attempt to split "2 cups flour" into parts
-  const rawIngredients: string[] = Array.isArray(schema.recipeIngredient)
-    ? schema.recipeIngredient.map(String)
-    : [];
+  // Many recipe plugins (WPRM, Tasty, Mediavine) strip section headers from
+  // the JSON-LD recipeIngredient array but keep them in the HTML. We scrape
+  // the DOM to recover group names and interleave them as § dividers.
 
-  const ingredients = rawIngredients.map((str) => {
+  type ParsedIngredient = {
+    quantity: string | null;
+    quantity_max: string | null;
+    unit: string | null;
+    name: string;
+  };
+
+  // ── HTML-based ingredient group extraction ──
+  // Returns an ordered list: group headers as { divider: "Section Name" }
+  // and ingredient text as { text: "2 cups flour" }.
+  function extractIngredientGroupsFromHtml(
+    pageHtml: string
+  ): { divider?: string; text?: string }[] | null {
+    // WPRM: <div class="wprm-recipe-ingredient-group">
+    //          <h4 class="wprm-recipe-group-name">Marinade</h4>
+    //          <ul class="wprm-recipe-ingredients"><li>...</li></ul>
+    //        </div>
+    // Tasty: <div class="tasty-recipe-ingredients">
+    //          <div class="tasty-recipe-ingredient-group"><p>Marinade</p><ul>...</ul></div>
+    // Mediavine: <div class="mv-create-ingredients">
+    //              <h4>Marinade</h4><ul>...</ul>
+
+    const results: { divider?: string; text?: string }[] = [];
+    let found = false;
+
+    // WPRM pattern
+    const wprmGroupRe =
+      /<div[^>]*class="[^"]*wprm-recipe-ingredient-group[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]*class="[^"]*wprm-recipe-ingredient-group|<div[^>]*class="[^"]*wprm-recipe-instruction|$)/gi;
+    const wprmHeaderRe =
+      /<[^>]*class="[^"]*wprm-recipe-group-name[^"]*"[^>]*>([\s\S]*?)<\//i;
+    const wprmItemRe =
+      /<li[^>]*class="[^"]*wprm-recipe-ingredient\b[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
+
+    let gm;
+    while ((gm = wprmGroupRe.exec(pageHtml)) !== null) {
+      found = true;
+      const groupHtml = gm[1];
+      const headerMatch = wprmHeaderRe.exec(groupHtml);
+      if (headerMatch) {
+        const name = headerMatch[1].replace(/<[^>]+>/g, "").trim();
+        if (name) results.push({ divider: name });
+      }
+      let im;
+      while ((im = wprmItemRe.exec(groupHtml)) !== null) {
+        const text = decodeHtml(im[1].replace(/<[^>]+>/g, ""))
+          .replace(/[\u25a2\u2610\u2611\u2612\u2713\u2714]/g, "") // strip checkbox chars
+          .replace(/\s+/g, " ")
+          .trim();
+        if (text) results.push({ text });
+      }
+    }
+
+    return found ? results : null;
+  }
+
+  // ── Parse a single ingredient string into structured parts ──
+  const FRAC_CHARS = "⅛¼⅓⅜½⅝⅔¾⅞";
+  const hasNumber = (s: string) =>
+    /\d/.test(s) || [...s].some((c) => FRAC_CHARS.includes(c));
+
+  function parseIngredientString(str: string): ParsedIngredient {
     // Range: "1-2 tsp sugar" or "1/4-1/2 C flour"
     const mr = str.match(
       /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
@@ -282,7 +342,39 @@ export async function POST(req: NextRequest) {
     }
     // backup: whole string as name
     return { quantity: null, quantity_max: null, unit: null, name: str };
-  });
+  }
+
+  // ── Build ingredient list: prefer HTML groups (has dividers), fall back to JSON-LD ──
+  const rawIngredients: string[] = Array.isArray(schema.recipeIngredient)
+    ? schema.recipeIngredient.map(String)
+    : [];
+
+  let ingredients: ParsedIngredient[];
+
+  const htmlGroups = extractIngredientGroupsFromHtml(html);
+  if (htmlGroups && htmlGroups.length > 0) {
+    // HTML groups found — use them (they include section dividers)
+    ingredients = htmlGroups.map((entry) => {
+      if (entry.divider) {
+        return { quantity: null, quantity_max: null, unit: "§", name: entry.divider };
+      }
+      return parseIngredientString(entry.text!);
+    });
+  } else {
+    // Fall back to JSON-LD with heuristic header detection
+    ingredients = rawIngredients.map((str) => {
+      // Section header heuristic: no numbers, under 60 chars
+      if (!hasNumber(str) && str.length <= 60) {
+        const lower = str.toLowerCase().trim();
+        const isFreeformIngredient =
+          /\b(to taste|as needed|for (garnish|serving|topping)|pinch|optional|a few|some|fresh|dried)\b/.test(lower);
+        if (!isFreeformIngredient) {
+          return { quantity: null, quantity_max: null, unit: "§", name: str.trim() };
+        }
+      }
+      return parseIngredientString(str);
+    });
+  }
 
   // 7)parse steps — handles flat HowToStep arrays AND nested HowToSection
   const rawSteps = Array.isArray(schema.recipeInstructions)

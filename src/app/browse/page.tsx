@@ -1,26 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Tag, TagCategory } from "@/lib/types/database";
-
-const categoryLabels: Record<TagCategory, string> = {
-  meal_type: "Meal Type",
-  season: "Season",
-  cuisine: "Cuisine",
-  dietary: "Dietary",
-  method: "Method",
-  occasion: "Occasion",
-  custom: "Custom",
-};
-
-const categoryOrder: TagCategory[] = [
-  "meal_type",
-  "cuisine",
-  "occasion",
-  "dietary",
-  "method",
-  "season",
-  "custom",
-];
+import { categoryLabels, categoryOrder } from "@/lib/utils/tag-helpers";
 
 export default async function BrowsePage() {
   const supabase = await createClient();

@@ -31,12 +31,12 @@ export default function ServingsMultiplier({ servings, servingsType, ingredients
   return (
     <div className="mb-8">
       {/* Heading row with pill */}
-      <div className="mb-3 flex items-center justify-between gap-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-baseline gap-2">
           <h2 className="font-heading text-xl font-semibold">Ingredients</h2>
           {scaledServings !== null && (
-            <span className="text-sm text-muted">
-              {scaledServings} {servingsType || "servings"}
+            <span className="whitespace-nowrap text-sm text-muted">
+              <strong className="text-foreground">{scaledServings}</strong> {servingsType || "servings"}
             </span>
           )}
         </div>

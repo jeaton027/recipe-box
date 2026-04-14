@@ -4,30 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import type { Recipe, Collection, Tag, TagCategory } from "@/lib/types/database";
+import { categoryLabels, categoryOrder } from "@/lib/utils/tag-helpers";
 
 // ── Constants ────────────────────────────────────────────────────
 
 type BrowseMode = "all" | "collections" | "tags";
-
-const categoryLabels: Record<TagCategory, string> = {
-  meal_type: "Meal Type",
-  season: "Season",
-  cuisine: "Cuisine",
-  dietary: "Dietary",
-  method: "Method",
-  occasion: "Occasion",
-  custom: "Custom",
-};
-
-const categoryOrder: TagCategory[] = [
-  "meal_type",
-  "cuisine",
-  "occasion",
-  "dietary",
-  "method",
-  "season",
-  "custom",
-];
 
 // ── Props ────────────────────────────────────────────────────────
 

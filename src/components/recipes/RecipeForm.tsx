@@ -5,7 +5,9 @@ import { useRouter , useSearchParams} from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ImagePicker from "@/components/recipes/ImagePicker";
 import { generateUniqueSlug } from "@/lib/utils/slug";
-import type { RecipeWithDetails, Tag } from "@/lib/types/database";
+import type { RecipeWithDetails, Tag, TagCategory } from "@/lib/types/database";
+import { categoryLabels, quickTagCategories, categoryOrder } from "@/lib/utils/tag-helpers";
+import TagPickerOverlay from "@/components/recipes/TagPickerOverlay";
 
 // § is used as a divider marker in the DB (unit field for ingredients, instruction prefix for steps)
 const DIVIDER_MARKER = "§";
@@ -174,6 +176,8 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
     recipe?.tags?.map((t) => t.id) ?? []
   );
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const [frequentTagIds, setFrequentTagIds] = useState<string[]>([]);
 
   const [ingredients, setIngredients] = useState<IngredientItem[]>(
     recipe?.ingredients?.map((i): IngredientItem =>
@@ -224,6 +228,30 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   const [ingredientGhostKey, setIngredientGhostKey] = useState(0);
   const [stepGhostIndex, setStepGhostIndex] = useState<number | null>(null);
   const [stepGhostKey, setStepGhostKey] = useState(0);
+
+  // Fetch most-used tags for "Frequently Used" row
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchFrequent() {
+      const { data } = await supabase
+        .from("recipe_tags")
+        .select("tag_id");
+      if (cancelled || !data) return;
+      // Count occurrences
+      const counts: Record<string, number> = {};
+      for (const row of data) {
+        counts[row.tag_id] = (counts[row.tag_id] || 0) + 1;
+      }
+      // Sort by count descending, take top 10
+      const top = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([id]) => id);
+      setFrequentTagIds(top);
+    }
+    fetchFrequent();
+    return () => { cancelled = true; };
+  }, [supabase]);
 
   useEffect(() => {
     if (ingredientGhostIndex === null) return;
@@ -350,10 +378,7 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
     return acc;
   }, {} as Record<string, Tag[]>);
 
-  const categoryLabels: Record<string, string> = {
-    meal_type: "Meal Type", season: "Season", cuisine: "Cuisine",
-    dietary: "Dietary", method: "Method", occasion: "Occasion", custom: "Custom",
-  };
+  // categoryLabels imported from tag-helpers
 
   function toggleTag(tagId: string) {
     const scrollY = window.scrollY;
@@ -1157,34 +1182,122 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
           placeholder="Personal notes, tips, variations..." />
       </div>
 
-      {/* Tags */}
+      {/* Tags — quick tags + overlay for full list */}
       <fieldset>
         <legend className="text-sm font-medium">Tags</legend>
         <div className="mt-3 space-y-4">
-          {Object.entries(tagsByCategory).map(([category, categoryTags]) => (
-            <div key={category}>
+          {/* Frequently Used */}
+          {frequentTagIds.length > 0 && (
+            <div>
               <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted">
-                {categoryLabels[category] ?? category}
+                Frequently Used
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {categoryTags.map((tag) => {
-                  const selected = selectedTagIds.includes(tag.id);
-                  return (
+                {frequentTagIds
+                  .map((id) => tags.find((t) => t.id === id))
+                  .filter((t): t is Tag => t !== undefined)
+                  .map((tag) => {
+                    const selected = selectedTagIds.includes(tag.id);
+                    return (
+                      <button key={tag.id} type="button"
+                        onClick={() => toggleTag(tag.id)}
+                        onMouseDown={(e) => e.preventDefault()}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                          selected ? "bg-accent text-white" : "bg-accent-light text-accent-dark hover:bg-accent/20"
+                        }`}>
+                        {tag.name}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* Trimmed quick-tag categories */}
+          {Object.entries(quickTagCategories).map(([category, allowedNames]) => {
+            const catTags = (tagsByCategory[category] ?? [])
+              .filter((t) => allowedNames === null || allowedNames.includes(t.name))
+              .sort((a, b) => a.name.localeCompare(b.name));
+            if (catTags.length === 0) return null;
+            return (
+              <div key={category}>
+                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+                  {categoryLabels[category as TagCategory] ?? category}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {catTags.map((tag) => {
+                    const selected = selectedTagIds.includes(tag.id);
+                    return (
+                      <button key={tag.id} type="button"
+                        onClick={() => toggleTag(tag.id)}
+                        onMouseDown={(e) => e.preventDefault()}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                          selected ? "bg-accent text-white" : "bg-accent-light text-accent-dark hover:bg-accent/20"
+                        }`}>
+                        {tag.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Selected tags from other categories (so user sees what they picked) */}
+          {(() => {
+            const quickCats = new Set(Object.keys(quickTagCategories));
+            const frequentSet = new Set(frequentTagIds);
+            const otherSelected = selectedTagIds
+              .map((id) => tags.find((t) => t.id === id))
+              .filter((t): t is Tag => t !== undefined && !quickCats.has(t.category) && !frequentSet.has(t.id));
+            if (otherSelected.length === 0) return null;
+            return (
+              <div>
+                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+                  Selected
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {otherSelected.map((tag) => (
                     <button key={tag.id} type="button"
                       onClick={() => toggleTag(tag.id)}
                       onMouseDown={(e) => e.preventDefault()}
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                        selected ? "bg-accent text-white" : "bg-accent-light text-accent-dark hover:bg-accent/20"
-                      }`}>
+                      className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-white transition-colors">
                       {tag.name}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })()}
+
+          {/* "More tags" button */}
+          <button
+            type="button"
+            onClick={() => setTagPickerOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border px-3 py-1 text-xs font-medium text-muted transition-colors hover:border-accent hover:text-accent"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            More tags
+            {selectedTagIds.length > 0 && (
+              <span className="rounded-full bg-accent px-1.5 text-[10px] text-white">
+                {selectedTagIds.length}
+              </span>
+            )}
+          </button>
         </div>
       </fieldset>
+
+      {/* Tag picker overlay */}
+      {tagPickerOpen && (
+        <TagPickerOverlay
+          tags={tags}
+          selectedIds={selectedTagIds}
+          onToggle={toggleTag}
+          onClose={() => setTagPickerOpen(false)}
+        />
+      )}
 
       {/* Submit */}
       <div className="flex items-center gap-3 border-t border-border pt-6">

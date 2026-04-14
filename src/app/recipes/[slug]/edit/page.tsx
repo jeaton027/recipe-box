@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import RecipeForm from "@/components/recipes/RecipeForm";
+import RecipeStatusToggle from "@/components/recipes/RecipeStatusToggle";
 import type { RecipeWithDetails } from "@/lib/types/database";
 
 export default async function EditRecipePage({
@@ -52,9 +53,16 @@ export default async function EditRecipePage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-      <h1 className="mb-6 font-heading text-2xl font-bold tracking-tight">
-        Edit Recipe
-      </h1>
+      <div className="mb-6 flex items-center gap-2">
+        <h1 className="font-heading text-2xl font-bold tracking-tight">
+          Edit Recipe
+        </h1>
+        <RecipeStatusToggle
+          recipeId={recipe.id}
+          initialStatus={recipe.status ?? "saved"}
+          mode="reset"
+        />
+      </div>
       <RecipeForm recipe={recipeWithDetails} tags={tags ?? []} />
     </div>
   );

@@ -1,17 +1,47 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const navLinks = [
   { href: "/recipes", label: "Recipes" },
   { href: "/browse", label: "Browse" },
   { href: "/collections", label: "Collections" },
-  { href: "/search", label: "Search" },
 ];
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus input when opened
+  useEffect(() => {
+    if (searchOpen) inputRef.current?.focus();
+  }, [searchOpen]);
+
+  // Close on Escape
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && searchOpen) {
+        setSearchOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [searchOpen]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+    router.push(`/search?q=${encodeURIComponent(q)}`);
+    setSearchOpen(false);
+    setQuery("");
+  }
 
   return (
     <nav className="hidden border-b border-border bg-white md:block">
@@ -33,7 +63,10 @@ export default function Navbar() {
 
         <div className="flex items-center gap-1">
           {navLinks.map((link) => {
-            const isActive = pathname.startsWith(link.href);
+            const isActive =
+              link.href === "/recipes"
+                ? pathname === "/recipes"
+                : pathname.startsWith(link.href);
             return (
               <Link
                 key={link.href}
@@ -48,6 +81,51 @@ export default function Navbar() {
               </Link>
             );
           })}
+
+          {/* Expandable search (hidden on /recipes which has its own search bar) */}
+          {pathname !== "/recipes" && <div className="relative ml-1 flex items-center">
+            {searchOpen ? (
+              <form onSubmit={handleSubmit} className="flex items-center">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search recipes…"
+                  className="w-48 rounded-l-md border border-r-0 border-border bg-white px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  onBlur={() => {
+                    // Close if empty after a short delay (allows submit click)
+                    setTimeout(() => {
+                      if (!query.trim()) {
+                        setSearchOpen(false);
+                        setQuery("");
+                      }
+                    }, 150);
+                  }}
+                />
+                <button
+                  type="submit"
+                  className="rounded-r-md border border-border bg-accent px-2.5 py-1.5 text-white hover:bg-accent-dark"
+                  title="Search"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                  </svg>
+                </button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSearchOpen(true)}
+                className="rounded-md p-2 text-muted transition-colors hover:bg-gray-100 hover:text-foreground"
+                title="Search"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+              </button>
+            )}
+          </div>}
         </div>
 
         <Link

@@ -21,6 +21,7 @@ export type Recipe = {
   is_image_only: boolean;
   family_id: string | null;
   variant_label: string | null;
+  status: "saved" | "tried" | "favorite";
   created_at: string;
   updated_at: string;
 };
@@ -58,6 +59,9 @@ export type TagCategory =
   | "dietary"
   | "method"
   | "occasion"
+  | "ingredient"
+  | "dish_type"
+  | "baked_goods"
   | "custom";
 
 export type Tag = {

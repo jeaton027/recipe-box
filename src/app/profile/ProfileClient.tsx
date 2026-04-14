@@ -4,26 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Tag, TagCategory } from "@/lib/types/database";
-
-const categoryLabels: Record<TagCategory, string> = {
-  meal_type: "Meal Type",
-  season: "Season",
-  cuisine: "Cuisine",
-  dietary: "Dietary",
-  method: "Method",
-  occasion: "Occasion",
-  custom: "Custom",
-};
-
-const categoryOrder: TagCategory[] = [
-  "meal_type",
-  "cuisine",
-  "occasion",
-  "dietary",
-  "method",
-  "season",
-  "custom",
-];
+import { categoryLabels, categoryOrder } from "@/lib/utils/tag-helpers";
 
 type Props = {
   email: string;
