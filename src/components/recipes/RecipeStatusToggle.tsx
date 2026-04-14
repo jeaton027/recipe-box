@@ -43,8 +43,13 @@ export default function RecipeStatusToggle({
     let next: Status;
 
     if (mode === "reset") {
-      // Toggle between "saved" and whatever the original non-saved status was
-      next = status === "saved" ? originalRef.current : "saved";
+      // If original was "saved", toggle to "tried" and back
+      // Otherwise toggle between "saved" and the original non-saved status
+      if (originalRef.current === "saved") {
+        next = status === "saved" ? "tried" : "saved";
+      } else {
+        next = status === "saved" ? originalRef.current : "saved";
+      }
     } else {
       next = nextCycle(status);
     }
