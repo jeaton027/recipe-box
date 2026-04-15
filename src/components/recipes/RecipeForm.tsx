@@ -155,14 +155,18 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   const [title, setTitle] = useState(recipe?.title ?? "");
   const [description, setDescription] = useState(recipe?.description ?? "");
   const [servings, setServings] = useState(recipe?.servings?.toString() ?? "");
+  const [servingsMax, setServingsMax] = useState(recipe?.servings_max?.toString() ?? "");
+  const [showServingsMax, setShowServingsMax] = useState(!!recipe?.servings_max);
   const [servingsType, setServingsType] = useState(recipe?.servings_type ?? "");
   const [prepTime, setPrepTime] = useState(recipe?.prep_time_minutes?.toString() ?? "");
   const [cookTime, setCookTime] = useState(recipe?.cook_time_minutes?.toString() ?? "");
   const [bakeTime, setBakeTime] = useState(recipe?.bake_time?.toString() ?? "");
   const [bakeTimeMax, setBakeTimeMax] = useState(recipe?.bake_time_max?.toString() ?? "");
+  const [showBakeTimeMax, setShowBakeTimeMax] = useState(!!recipe?.bake_time_max);
   const [bakeTimeUnit, setBakeTimeUnit] = useState(recipe?.bake_time_unit ?? "min");
   const [bakeTemp, setBakeTemp] = useState(recipe?.bake_temp?.toString() ?? "");
   const [bakeTempMax, setBakeTempMax] = useState(recipe?.bake_temp_max?.toString() ?? "");
+  const [showBakeTempMax, setShowBakeTempMax] = useState(!!recipe?.bake_temp_max);
   const [bakeTempUnit, setBakeTempUnit] = useState(recipe?.bake_temp_unit ?? "F");
   const [notes, setNotes] = useState(recipe?.notes ?? "");
   const [variantLabel, setVariantLabel] = useState(recipe?.variant_label ?? "");
@@ -224,6 +228,13 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   const dragStepRef = useRef<number | null>(null);
   const dragStepOverRef = useRef<number | null>(null);
 
+  // Refs for focusing the "max" input after a dash-split
+  const servingsMaxRef = useRef<HTMLInputElement>(null);
+  const bakeTimeMaxRef = useRef<HTMLInputElement>(null);
+  const bakeTempMaxRef = useRef<HTMLInputElement>(null);
+  // Dynamic refs for ingredient quantity max inputs
+  const ingredientMaxRefs = useRef<Map<number, HTMLInputElement>>(new Map());
+
   // Ghost line: shows where the last moved item came from
   const [ingredientGhostIndex, setIngredientGhostIndex] = useState<number | null>(null);
   const [ingredientGhostKey, setIngredientGhostKey] = useState(0);
@@ -275,13 +286,14 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         setTitle(data.title ?? "");
         setDescription(data.description ?? "");
         setServings(data.servings?.toString() ?? "");
+        if (data.servings_max) { setServingsMax(data.servings_max.toString()); setShowServingsMax(true); }
         setPrepTime(data.prep_time_minutes?.toString() ?? "");
         setCookTime(data.cook_time_minutes?.toString() ?? "");
         if (data.bake_time) setBakeTime(data.bake_time.toString());
-        if (data.bake_time_max) setBakeTimeMax(data.bake_time_max.toString());
+        if (data.bake_time_max) { setBakeTimeMax(data.bake_time_max.toString()); setShowBakeTimeMax(true); }
         if (data.bake_time_unit) setBakeTimeUnit(data.bake_time_unit);
         if (data.bake_temp) setBakeTemp(data.bake_temp.toString());
-        if (data.bake_temp_max) setBakeTempMax(data.bake_temp_max.toString());
+        if (data.bake_temp_max) { setBakeTempMax(data.bake_temp_max.toString()); setShowBakeTempMax(true); }
         if (data.bake_temp_unit) setBakeTempUnit(data.bake_temp_unit);
         setIngredients(
           data.ingredients?.map((i: { quantity: string | null; quantity_max: string | null; unit: string | null; name: string }): IngredientItem =>
@@ -321,14 +333,15 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         setTitle(data.title ?? "");
         setDescription(data.description ?? "");
         setServings(data.servings?.toString() ?? "");
+        if (data.servings_max) { setServingsMax(data.servings_max.toString()); setShowServingsMax(true); }
         setServingsType(data.servings_type ?? "");
         setPrepTime(data.prep_time_minutes?.toString() ?? "");
         setCookTime(data.cook_time_minutes?.toString() ?? "");
         if (data.bake_time) setBakeTime(data.bake_time.toString());
-        if (data.bake_time_max) setBakeTimeMax(data.bake_time_max.toString());
+        if (data.bake_time_max) { setBakeTimeMax(data.bake_time_max.toString()); setShowBakeTimeMax(true); }
         if (data.bake_time_unit) setBakeTimeUnit(data.bake_time_unit);
         if (data.bake_temp) setBakeTemp(data.bake_temp.toString());
-        if (data.bake_temp_max) setBakeTempMax(data.bake_temp_max.toString());
+        if (data.bake_temp_max) { setBakeTempMax(data.bake_temp_max.toString()); setShowBakeTempMax(true); }
         if (data.bake_temp_unit) setBakeTempUnit(data.bake_temp_unit);
         if (data.notes) setNotes(data.notes);
         setSourceUrl(data.source_url ?? "");
@@ -389,6 +402,30 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
     requestAnimationFrame(() => window.scrollTo(0, scrollY));
   }
 
+  // ── Dash-split handler for range inputs ─────────────────────────────────────
+  // When user types a dash in a single-value input, split into min/max fields
+  // and focus the max input. Works for servings, bake time, bake temp.
+  function handleDashSplit(
+    value: string,
+    setMin: (v: string) => void,
+    setMax: (v: string) => void,
+    setShow: (v: boolean) => void,
+    maxRef: React.RefObject<HTMLInputElement | null>,
+    isShowing: boolean,
+  ) {
+    if (!isShowing) {
+      const match = value.match(/^(.+?)\s*[-–]\s*(.*)$/);
+      if (match) {
+        setMin(match[1].trim());
+        setMax(match[2].trim());
+        setShow(true);
+        requestAnimationFrame(() => maxRef.current?.focus());
+        return;
+      }
+    }
+    setMin(value);
+  }
+
   // ── Ingredients ─────────────────────────────────────────────────────────────
   function addIngredient() {
     setIngredients((prev) => [...prev, { kind: "ingredient", name: "", quantity: "", quantityMax: "", showMax: false, unit: "" }]);
@@ -410,9 +447,10 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
 
       // Auto-split dash pattern in quantity field: "1-2" or "1/4-1/2"
       if (field === "quantity" && !item.showMax) {
-        const rangeMatch = value.match(/^([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅜½⅝¾⅞⅓⅔]+)$/);
+        const rangeMatch = value.match(/^(.+?)\s*(?:[-–])\s*(.*)$/);
         if (rangeMatch) {
           updated[index] = { ...item, quantity: rangeMatch[1].trim(), quantityMax: rangeMatch[2].trim(), showMax: true };
+          requestAnimationFrame(() => ingredientMaxRefs.current.get(index)?.focus());
           return updated;
         }
       }
@@ -556,6 +594,7 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
       title: title.trim(),
       description: description.trim() || null,
       servings: servings ? parseInt(servings) : null,
+      servings_max: servingsMax ? parseInt(servingsMax) : null,
       servings_type: servingsType.trim() || null,
       prep_time_minutes: prepTime ? parseInt(prepTime) : null,
       cook_time_minutes: cookTime ? parseInt(cookTime) : null,
@@ -781,15 +820,16 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         <input
           type="text"
           value={bakeTime}
-          onChange={(e) => setBakeTime(e.target.value)}
+          onChange={(e) => handleDashSplit(e.target.value, setBakeTime, setBakeTimeMax, setShowBakeTimeMax, bakeTimeMaxRef, showBakeTimeMax)}
           placeholder="Time"
           className="w-14 rounded-md border border-border bg-white px-2 py-1.5 text-sm text-center focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
-        {bakeTime && (
+        {showBakeTimeMax && (
           <>
             <span className="text-xs text-muted">–</span>
             <input
               type="text"
+              ref={bakeTimeMaxRef}
               value={bakeTimeMax}
               onChange={(e) => setBakeTimeMax(e.target.value)}
               placeholder="Max"
@@ -808,15 +848,16 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         <input
           type="text"
           value={bakeTemp}
-          onChange={(e) => setBakeTemp(e.target.value)}
+          onChange={(e) => handleDashSplit(e.target.value, setBakeTemp, setBakeTempMax, setShowBakeTempMax, bakeTempMaxRef, showBakeTempMax)}
           placeholder="Temp"
           className="w-16 rounded-md border border-border bg-white px-2 py-1.5 text-sm text-center focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
-        {bakeTemp && (
+        {showBakeTempMax && (
           <>
             <span className="text-xs text-muted">–</span>
             <input
               type="text"
+              ref={bakeTempMaxRef}
               value={bakeTempMax}
               onChange={(e) => setBakeTempMax(e.target.value)}
               placeholder="Max"
@@ -832,22 +873,49 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         >
           {bakeTempUnit}
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            const convert = bakeTempUnit === "F"
+              ? (v: number) => Math.round((v - 32) * 5 / 9)
+              : (v: number) => Math.round(v * 9 / 5 + 32);
+            if (bakeTemp) setBakeTemp(convert(parseInt(bakeTemp)).toString());
+            if (bakeTempMax) setBakeTempMax(convert(parseInt(bakeTempMax)).toString());
+            setBakeTempUnit(bakeTempUnit === "F" ? "C" : "F");
+          }}
+          className="text-xs text-muted hover:font-semibold transition-all"
+        >
+          convert
+        </button>
       </div>
 
       {/* Times & Servings */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Servings: count + type */}
+        {/* Servings: count (+ optional max) + type */}
         <div>
           <label className="block text-sm font-medium">Servings</label>
-          <div className="mt-1 flex gap-1">
+          <div className="mt-1 flex items-center gap-1">
             <input
               id="servings"
-              type="number"
-              min={1}
+              type="text"
               value={servings}
-              onChange={(e) => setServings(e.target.value)}
-              className="w-14 shrink-0 rounded-md border border-border bg-white px-2 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              onChange={(e) => handleDashSplit(e.target.value, setServings, setServingsMax, setShowServingsMax, servingsMaxRef, showServingsMax)}
+              placeholder="#"
+              className="w-14 shrink-0 rounded-md border border-border bg-white px-2 py-2 text-sm text-center focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             />
+            {showServingsMax && (
+              <>
+                <span className="text-xs text-muted">–</span>
+                <input
+                  type="text"
+                  ref={servingsMaxRef}
+                  value={servingsMax}
+                  onChange={(e) => setServingsMax(e.target.value)}
+                  placeholder="Max"
+                  className="w-14 shrink-0 rounded-md border border-border bg-white px-2 py-2 text-sm text-center focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </>
+            )}
             <input
               type="text"
               value={servingsType}
@@ -963,6 +1031,7 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
                             className="w-10 sm:w-16 shrink-0 rounded-md border border-border bg-white px-1 sm:px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
                           <span className="text-xs text-muted shrink-0">–</span>
                           <input type="text" value={item.quantityMax}
+                            ref={(el) => { if (el) ingredientMaxRefs.current.set(i, el); else ingredientMaxRefs.current.delete(i); }}
                             onChange={(e) => updateIngredientField(i, "quantityMax", e.target.value)}
                             placeholder="Max"
                             className="w-10 sm:w-16 shrink-0 rounded-md border border-border bg-white px-1 sm:px-2 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />

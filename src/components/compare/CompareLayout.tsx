@@ -143,6 +143,9 @@ export default function CompareLayout({ recipes }: { recipes: CompareData[] }) {
               const scaledServings = recipe.servings
                 ? Math.round(recipe.servings * m)
                 : null;
+              const scaledServingsMax = recipe.servings_max
+                ? Math.round(recipe.servings_max * m)
+                : null;
               return (
                 <div
                   key={col}
@@ -150,7 +153,7 @@ export default function CompareLayout({ recipes }: { recipes: CompareData[] }) {
                 >
                   {scaledServings !== null ? (
                     <span className="text-sm text-muted">
-                      <strong className="text-foreground">{scaledServings}</strong> {recipe.servings_type || "servings"}
+                      <strong className="text-foreground">{scaledServings}{scaledServingsMax ? `–${scaledServingsMax}` : ""}</strong> {recipe.servings_type || "servings"}
                     </span>
                   ) : (
                     <span />

@@ -5,6 +5,7 @@ export type Recipe = {
   title: string;
   description: string | null;
   servings: number | null;
+  servings_max: number | null;
   servings_type: string | null;
   prep_time_minutes: number | null;
   cook_time_minutes: number | null;

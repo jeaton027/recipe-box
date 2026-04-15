@@ -184,6 +184,7 @@ export default async function RecipeDetailPage({
         <section>
           <ServingsMultiplier
             servings={recipe.servings}
+            servingsMax={recipe.servings_max}
             servingsType={recipe.servings_type}
             ingredients={ingredients}
           />

@@ -81,10 +81,10 @@ export default function RecipeStatusToggle({
       onClick={handleClick}
       disabled={isPending}
       title={statusLabel(status)}
-      className="group relative flex items-center justify-center rounded-md p-1.5 transition-colors hover:bg-accent-light/50 disabled:opacity-50"
+      className="group relative flex items-center justify-center rounded-md p-1.5 hover:bg-accent-light/50"
     >
       <svg
-        className={`h-6 w-6 transition-colors ${
+        className={`h-6 w-6 ${
           isFavorite
             ? "fill-amber-400 text-amber-500"
             : isTried

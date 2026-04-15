@@ -6,13 +6,14 @@ import { formatQuantity } from "@/lib/utils/format-quantity";
 
 type Props = {
   servings: number | null;
+  servingsMax?: number | null;
   servingsType?: string | null;
   ingredients: Ingredient[];
 };
 
 type Option = 0.5 | 1 | 2 | "custom";
 
-export default function ServingsMultiplier({ servings, servingsType, ingredients }: Props) {
+export default function ServingsMultiplier({ servings, servingsMax, servingsType, ingredients }: Props) {
   const [selected, setSelected] = useState<Option>(1);
   const [customValue, setCustomValue] = useState("");
 
@@ -20,6 +21,7 @@ export default function ServingsMultiplier({ servings, servingsType, ingredients
     selected === "custom" ? parseFloat(customValue) || 1 : selected;
 
   const scaledServings = servings ? Math.round(servings * multiplier) : null;
+  const scaledServingsMax = servingsMax ? Math.round(servingsMax * multiplier) : null;
 
   const options: { label: string; value: Option }[] = [
     { label: "½×", value: 0.5 },
@@ -36,7 +38,7 @@ export default function ServingsMultiplier({ servings, servingsType, ingredients
           <h2 className="font-heading text-xl font-semibold">Ingredients</h2>
           {scaledServings !== null && (
             <span className="whitespace-nowrap text-sm text-muted">
-              <strong className="text-foreground">{scaledServings}</strong> {servingsType || "servings"}
+              <strong className="text-foreground">{scaledServings}{scaledServingsMax ? `–${scaledServingsMax}` : ""}</strong> {servingsType || "servings"}
             </span>
           )}
         </div>

@@ -85,14 +85,14 @@ export default function Navbar() {
           {/* Expandable search (hidden on /recipes which has its own search bar) */}
           {pathname !== "/recipes" && <div className="relative ml-1 flex items-center">
             {searchOpen ? (
-              <form onSubmit={handleSubmit} className="flex items-center">
+              <form onSubmit={handleSubmit} className="flex items-center gap-1.5">
                 <input
                   ref={inputRef}
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search recipes…"
-                  className="w-48 rounded-l-md border border-r-0 border-border bg-white px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  className="w-48 rounded-md border border-border bg-white px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                   onBlur={() => {
                     // Close if empty after a short delay (allows submit click)
                     setTimeout(() => {
@@ -105,7 +105,7 @@ export default function Navbar() {
                 />
                 <button
                   type="submit"
-                  className="rounded-r-md border border-border bg-accent px-2.5 py-1.5 text-white hover:bg-accent-dark"
+                  className="rounded-md bg-accent px-2.5 py-1.5 text-white hover:bg-accent-dark"
                   title="Search"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
