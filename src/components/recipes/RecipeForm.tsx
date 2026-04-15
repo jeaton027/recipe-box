@@ -7,6 +7,7 @@ import ImagePicker from "@/components/recipes/ImagePicker";
 import { generateUniqueSlug } from "@/lib/utils/slug";
 import type { RecipeWithDetails, Tag, TagCategory } from "@/lib/types/database";
 import { categoryLabels, quickTagCategories, categoryOrder } from "@/lib/utils/tag-helpers";
+import { compressImage } from "@/lib/utils/compress-image";
 import TagPickerOverlay from "@/components/recipes/TagPickerOverlay";
 
 // § is used as a divider marker in the DB (unit field for ingredients, instruction prefix for steps)
@@ -491,9 +492,10 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   async function handleImageUpload(file: File): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const fileExt = file.name.split(".").pop();
+    const compressed = await compressImage(file);
+    const fileExt = compressed.name.split(".").pop();
     const filePath = `${user.id}/${Date.now()}.${fileExt}`;
-    const { error } = await supabase.storage.from("recipe-images").upload(filePath, file);
+    const { error } = await supabase.storage.from("recipe-images").upload(filePath, compressed);
     if (error) { console.error("Upload error:", error); return; }
     const { data: { publicUrl } } = supabase.storage.from("recipe-images").getPublicUrl(filePath);
     setImportedImages((prev) => [...prev, publicUrl]);

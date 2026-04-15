@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import SearchClient from "@/components/search/SearchClient";
+import { searchRecipeIds } from "@/lib/utils/search-recipes";
 import type { Recipe } from "@/lib/types/database";
 
 export default async function RecipesPage({
@@ -22,32 +23,7 @@ export default async function RecipesPage({
     .order("name");
 
   // Collect matching recipe IDs from all active filters
-  let recipeIds: string[] | null = null;
-
-  // Text search: title, ingredients, and tag name matches
-  if (query) {
-    const [titleMatches, ingredientMatches, matchingTags] = await Promise.all([
-      supabase.from("recipes").select("id").ilike("title", `%${query}%`),
-      supabase.from("ingredients").select("recipe_id").ilike("name", `%${query}%`),
-      supabase.from("tags").select("id").ilike("name", `%${query}%`),
-    ]);
-    let tagRecipeIds: string[] = [];
-    const matchingTagIds = matchingTags.data?.map((t) => t.id) ?? [];
-    if (matchingTagIds.length > 0) {
-      const { data } = await supabase
-        .from("recipe_tags")
-        .select("recipe_id")
-        .in("tag_id", matchingTagIds);
-      tagRecipeIds = data?.map((r) => r.recipe_id) ?? [];
-    }
-    recipeIds = [
-      ...new Set([
-        ...(titleMatches.data?.map((r) => r.id) ?? []),
-        ...(ingredientMatches.data?.map((r) => r.recipe_id) ?? []),
-        ...tagRecipeIds,
-      ]),
-    ];
-  }
+  let recipeIds = await searchRecipeIds(supabase, query);
 
   // Tag filters: intersect with recipe IDs that have ALL selected tags
   if (selectedTagIds.length > 0) {

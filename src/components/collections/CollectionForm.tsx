@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ImageUpload from "@/components/ui/ImageUpload";
 import type { Collection } from "@/lib/types/database";
+import { compressImage } from "@/lib/utils/compress-image";
 
 type Props = {
   collection?: Collection;
@@ -25,12 +26,13 @@ export default function CollectionForm({ collection }: Props) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const fileExt = file.name.split(".").pop();
+    const compressed = await compressImage(file);
+    const fileExt = compressed.name.split(".").pop();
     const filePath = `${user.id}/collections/${Date.now()}.${fileExt}`;
 
     const { error } = await supabase.storage
       .from("recipe-images")
-      .upload(filePath, file);
+      .upload(filePath, compressed);
 
     if (error) return null;
 
