@@ -12,6 +12,7 @@ import CompareButton from "@/components/recipes/CompareButton";
 import MoreFromSource from "@/components/recipes/MoreFromSource";
 import RecipeStatusToggle from "@/components/recipes/RecipeStatusToggle";
 import TagPills from "@/components/recipes/TagPills";
+import SeenInMenus from "@/components/menus/SeenInMenus";
 
 export default async function RecipeDetailPage({
   params,
@@ -234,9 +235,10 @@ export default async function RecipeDetailPage({
         </section>
       )}
 
-      {/* Source + more from this creator */}
-      {recipe.source_url && (
-        <div>
+      {/* Related: Seen in menus + source */}
+      <section className="space-y-3">
+        <SeenInMenus recipeId={recipe.id} />
+        {recipe.source_url && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className="text-sm text-muted">
               Source:{" "}
@@ -254,8 +256,8 @@ export default async function RecipeDetailPage({
               currentRecipeId={recipe.id}
             />
           </div>
-        </div>
-      )}
+        )}
+      </section>
     </div>
   );
 }

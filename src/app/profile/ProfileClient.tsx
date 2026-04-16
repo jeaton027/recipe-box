@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Tag, TagCategory } from "@/lib/types/database";
@@ -10,6 +11,7 @@ type Props = {
   email: string;
   recipeCount: number;
   collectionCount: number;
+  menuCount: number;
   tags: Tag[];
 };
 
@@ -17,6 +19,7 @@ export default function ProfileClient({
   email,
   recipeCount,
   collectionCount,
+  menuCount,
   tags: initialTags,
 }: Props) {
   const supabase = createClient();
@@ -148,6 +151,10 @@ export default function ProfileClient({
             <strong className="text-foreground">{collectionCount}</strong>{" "}
             <span className="text-muted">{collectionCount === 1 ? "collection" : "collections"}</span>
           </span>
+          <span>
+            <strong className="text-foreground">{menuCount}</strong>{" "}
+            <span className="text-muted">{menuCount === 1 ? "menu" : "menus"}</span>
+          </span>
         </div>
 
         {/* Password */}
@@ -213,6 +220,22 @@ export default function ProfileClient({
             Sign out
           </button>
         </div>
+      </section>
+
+      {/* Menus — mobile access path (desktop uses nav bar) */}
+      <section className="mb-8 rounded-lg border border-border bg-white p-5 md:hidden">
+        <div className="flex items-center justify-between">
+          <h2 className="font-heading text-lg font-semibold">Menus</h2>
+          <Link
+            href="/menus"
+            className="text-sm font-medium text-accent hover:text-accent-dark"
+          >
+            View all →
+          </Link>
+        </div>
+        <p className="mt-1 text-sm text-muted">
+          {menuCount} {menuCount === 1 ? "menu" : "menus"}
+        </p>
       </section>
 
       {/* Manage Tags */}

@@ -8,6 +8,7 @@ const navLinks = [
   { href: "/recipes", label: "Recipes" },
   { href: "/browse", label: "Browse" },
   { href: "/collections", label: "Collections" },
+  { href: "/menus", label: "Menus" },
 ];
 
 export default function Navbar() {
