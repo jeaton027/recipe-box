@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import type { Recipe, Collection, Tag, TagCategory } from "@/lib/types/database";
+import type { Recipe, Collection, Tag } from "@/lib/types/database";
 import { categoryLabels, categoryOrder } from "@/lib/utils/tag-helpers";
 
 // ── Constants ────────────────────────────────────────────────────
 
-type BrowseMode = "all" | "collections" | "tags";
+type BrowseMode = "all" | "collections";
 
 // ── Props ────────────────────────────────────────────────────────
 
@@ -65,19 +65,25 @@ export default function RecipePickerOverlay({
 }: RecipePickerOverlayProps) {
   const supabase = createClient();
   const panelRef = useRef<HTMLDivElement>(null);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
 
   // Shared data (fetched once on open)
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [recipeTagMap, setRecipeTagMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(false);
 
   // Browse / drill-down state
   const [browseMode, setBrowseMode] = useState<BrowseMode>("all");
   const [search, setSearch] = useState("");
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
-  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [filteredRecipeIds, setFilteredRecipeIds] = useState<string[] | null>(null);
+
+  // Filter state
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
+  const [filterStatus, setFilterStatus] = useState("");
 
   // ── Fetch recipes + collections + tags on open ─────────────────
 
@@ -85,15 +91,25 @@ export default function RecipePickerOverlay({
     if (!open) return;
     async function load() {
       setLoading(true);
-      const [{ data: allRecipes }, { data: cols }, { data: allTags }] =
+      const [{ data: allRecipes }, { data: cols }, { data: allTags }, { data: recipeTags }] =
         await Promise.all([
           supabase.from("recipes").select("*").order("title"),
           supabase.from("collections").select("*").order("name"),
           supabase.from("tags").select("*").order("name"),
+          supabase.from("recipe_tags").select("recipe_id, tag_id"),
         ]);
       setRecipes(allRecipes ?? []);
       setCollections(cols ?? []);
       setTags(allTags ?? []);
+
+      // Build recipe → tag_ids map for filtering
+      const map: Record<string, string[]> = {};
+      for (const rt of recipeTags ?? []) {
+        if (!map[rt.recipe_id]) map[rt.recipe_id] = [];
+        map[rt.recipe_id].push(rt.tag_id);
+      }
+      setRecipeTagMap(map);
+
       setLoading(false);
     }
     load();
@@ -115,6 +131,8 @@ export default function RecipePickerOverlay({
   // ── Outside click dismiss ──────────────────────────────────────
 
   function handleOverlayClick(e: React.MouseEvent) {
+    // Don't close overlay if clicking inside the filter panel
+    if (filterPanelRef.current?.contains(e.target as Node)) return;
     if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
       handleClose();
     }
@@ -126,8 +144,10 @@ export default function RecipePickerOverlay({
     setBrowseMode("all");
     setSearch("");
     setSelectedCollectionId(null);
-    setSelectedTagId(null);
     setFilteredRecipeIds(null);
+    setFilterOpen(false);
+    setFilterTagIds([]);
+    setFilterStatus("");
     onClose();
   }
 
@@ -140,34 +160,39 @@ export default function RecipePickerOverlay({
       .eq("collection_id", colId);
     setFilteredRecipeIds(data?.map((r) => r.recipe_id) ?? []);
     setSelectedCollectionId(colId);
-    setSelectedTagId(null);
-  }
-
-  // ── Drill-down: tag → recipes ──────────────────────────────────
-
-  async function selectTag(tagId: string) {
-    const { data } = await supabase
-      .from("recipe_tags")
-      .select("recipe_id")
-      .eq("tag_id", tagId);
-    setFilteredRecipeIds(data?.map((r) => r.recipe_id) ?? []);
-    setSelectedTagId(tagId);
-    setSelectedCollectionId(null);
   }
 
   function handleBack() {
     setSelectedCollectionId(null);
-    setSelectedTagId(null);
     setFilteredRecipeIds(null);
     setSearch("");
   }
+
+  // ── Filter helpers ─────────────────────────────────────────────
+
+  function toggleFilterTag(tagId: string) {
+    setFilterTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
+  }
+
+  function toggleFilterStatus(value: string) {
+    setFilterStatus((prev) => (prev === value ? "" : value));
+  }
+
+  function clearFilters() {
+    setFilterTagIds([]);
+    setFilterStatus("");
+  }
+
+  const activeFilterCount = filterTagIds.length + (filterStatus ? 1 : 0);
 
   // ── Build the visible recipe list ──────────────────────────────
 
   function getVisibleRecipes(): Recipe[] {
     let pool = recipes.filter((r) => !excludeIds?.has(r.id));
 
-    // Drill-down filter
+    // Drill-down filter (collection)
     if (filteredRecipeIds !== null) {
       const idSet = new Set(filteredRecipeIds);
       pool = pool.filter((r) => idSet.has(r.id));
@@ -177,6 +202,19 @@ export default function RecipePickerOverlay({
     if (search.trim()) {
       const q = search.toLowerCase();
       pool = pool.filter((r) => r.title.toLowerCase().includes(q));
+    }
+
+    // Tag filter — recipe must have ALL selected tags
+    if (filterTagIds.length > 0) {
+      pool = pool.filter((r) => {
+        const rTags = recipeTagMap[r.id] ?? [];
+        return filterTagIds.every((tid) => rTags.includes(tid));
+      });
+    }
+
+    // Status filter
+    if (filterStatus) {
+      pool = pool.filter((r) => r.status === filterStatus);
     }
 
     // Sort: prioritized first → normal → disabled last
@@ -189,18 +227,25 @@ export default function RecipePickerOverlay({
     });
   }
 
-  // ── Filtered collections / tags for picker modes ───────────────
+  // ── Filtered collections for picker mode ───────────────────────
 
   const filteredCollections = collections.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
-  const filteredTags = tags.filter((t) =>
-    t.name.toLowerCase().includes(search.toLowerCase())
-  );
 
   const showingCollectionPicker =
     browseMode === "collections" && !selectedCollectionId;
-  const showingTagPicker = browseMode === "tags" && !selectedTagId;
+
+  // ── Tags grouped by category for filter panel ──────────────────
+
+  const tagsByCategory = tags.reduce(
+    (acc: Record<string, Tag[]>, tag: Tag) => {
+      if (!acc[tag.category]) acc[tag.category] = [];
+      acc[tag.category].push(tag);
+      return acc;
+    },
+    {} as Record<string, Tag[]>
+  );
 
   // ── Render ─────────────────────────────────────────────────────
 
@@ -220,8 +265,8 @@ export default function RecipePickerOverlay({
         {/* ── Top bar: search + close + action ──────────────── */}
         <div className="border-b border-border px-4 py-3">
           <div className="flex items-center gap-3">
-            {/* Back arrow when drilled into a collection/tag */}
-            {(selectedCollectionId || selectedTagId) && (
+            {/* Back arrow when drilled into a collection */}
+            {selectedCollectionId && (
               <button
                 onClick={handleBack}
                 className="shrink-0 text-muted hover:text-foreground"
@@ -265,8 +310,6 @@ export default function RecipePickerOverlay({
                 placeholder={
                   showingCollectionPicker
                     ? "Search collections..."
-                    : showingTagPicker
-                    ? "Search tags..."
                     : "Search recipes..."
                 }
                 className="w-full rounded-md border border-border bg-background py-1.5 pl-9 pr-3 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
@@ -307,19 +350,39 @@ export default function RecipePickerOverlay({
             </button>
           </div>
 
-          {/* Tray + browse tabs row */}
+          {/* Filter button + tray + browse tabs */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            {/* Filter button — left-aligned */}
+            <button
+              type="button"
+              onClick={() => setFilterOpen((o) => !o)}
+              className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                activeFilterCount > 0
+                  ? "border-accent bg-accent-light text-accent-dark"
+                  : "border-border text-muted hover:border-accent hover:text-foreground"
+              }`}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+              </svg>
+              Filter
+              {activeFilterCount > 0 && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] text-white">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
             {tray}
 
             {/* Browse mode tabs — right-aligned */}
             <div className="ml-auto flex gap-1">
-              {(["all", "collections", "tags"] as BrowseMode[]).map((m) => (
+              {(["all", "collections"] as BrowseMode[]).map((m) => (
                 <button
                   key={m}
                   onClick={() => {
                     setBrowseMode(m);
                     setSelectedCollectionId(null);
-                    setSelectedTagId(null);
                     setFilteredRecipeIds(null);
                     setSearch("");
                   }}
@@ -329,15 +392,33 @@ export default function RecipePickerOverlay({
                       : "bg-accent-light text-accent-dark hover:bg-accent hover:text-white"
                   }`}
                 >
-                  {m === "all"
-                    ? "All Recipes"
-                    : m === "collections"
-                    ? "Collections"
-                    : "Tags"}
+                  {m === "all" ? "All Recipes" : "Collections"}
                 </button>
               ))}
             </div>
           </div>
+
+          {/* Active filter chips */}
+          {filterTagIds.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {filterTagIds.map((tagId) => {
+                const tag = tags.find((t) => t.id === tagId);
+                if (!tag) return null;
+                return (
+                  <button
+                    key={tagId}
+                    onClick={() => toggleFilterTag(tagId)}
+                    className="flex items-center gap-1 rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-medium text-white"
+                  >
+                    {tag.name}
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* ── Grid content — scrollable ─────────────────────── */}
@@ -398,62 +479,10 @@ export default function RecipePickerOverlay({
                 ))}
               </div>
             )
-          ) : showingTagPicker ? (
-            (() => {
-              const tagsByCategory = filteredTags.reduce(
-                (acc: Record<string, Tag[]>, tag: Tag) => {
-                  if (!acc[tag.category]) acc[tag.category] = [];
-                  acc[tag.category].push(tag);
-                  return acc;
-                },
-                {} as Record<string, Tag[]>
-              );
-              const orderedCategories = categoryOrder.filter(
-                (cat) => tagsByCategory[cat]?.length > 0
-              );
-
-              if (orderedCategories.length === 0) {
-                return (
-                  <p className="py-12 text-center text-sm text-muted">
-                    {search ? (
-                      <>No tags matching &ldquo;{search}&rdquo;</>
-                    ) : (
-                      "No tags yet."
-                    )}
-                  </p>
-                );
-              }
-
-              return (
-                <div className="space-y-8">
-                  {orderedCategories.map((category) => (
-                    <section key={category} className="text-center">
-                      <h3 className="font-heading mb-3 text-sm font-semibold tracking-wide text-muted">
-                        {categoryLabels[category]}
-                      </h3>
-                      <div className="mx-auto inline-flex max-w-xl flex-wrap justify-center gap-1.5">
-                        {tagsByCategory[category].map((tag: Tag) => (
-                          <button
-                            key={tag.id}
-                            onClick={() => {
-                              selectTag(tag.id);
-                              setSearch("");
-                            }}
-                            className="rounded-sm bg-accent/5 px-1 py-1 text-sm font-medium text-accent-dark transition-colors hover:bg-accent/70 hover:text-white"
-                          >
-                            {tag.name}
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              );
-            })()
           ) : visible.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted">
-              {search ? (
-                <>No recipes matching &ldquo;{search}&rdquo;</>
+              {search || activeFilterCount > 0 ? (
+                <>No recipes matching your filters</>
               ) : (
                 "No other recipes found."
               )}
@@ -534,6 +563,103 @@ export default function RecipePickerOverlay({
           )}
         </div>
       </div>
+
+      {/* ── Filter panel overlay ──────────────────────────── */}
+      {filterOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] bg-black/20"
+            onClick={() => setFilterOpen(false)}
+          />
+          <div
+            ref={filterPanelRef}
+            className="fixed bottom-0 left-0 right-0 z-[70] flex max-h-[80vh] flex-col rounded-t-2xl bg-white shadow-xl md:left-6 md:right-auto md:top-20 md:bottom-6 md:w-[25rem] md:max-h-none md:rounded-xl"
+          >
+            {/* Sticky top bar */}
+            <div className="flex items-center justify-between border-b border-border px-6 py-3">
+              <h2 className="font-heading text-lg font-semibold">Filters</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={clearFilters}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:text-foreground"
+                >
+                  Clear
+                </button>
+                <button
+                  onClick={() => setFilterOpen(false)}
+                  className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable filter content */}
+            <div className="flex-1 overflow-y-auto p-6 pb-0">
+              {/* Status filters */}
+              <div className="mb-5 flex flex-col gap-3">
+                {[
+                  { value: "tried", label: "Previously Prepared", activeColor: "bg-accent/30" },
+                  { value: "favorite", label: "Favorited", activeColor: "bg-amber-300/50" },
+                ].map(({ value, label, activeColor }) => {
+                  const selected = filterStatus === value;
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => toggleFilterStatus(value)}
+                      className="flex w-full items-center justify-between"
+                    >
+                      <span className="text-sm font-medium text-foreground">{label}</span>
+                      <span
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                          selected ? activeColor : "bg-gray-200"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                            selected ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Tag categories */}
+              <div className="space-y-5 pb-14">
+                {categoryOrder
+                  .filter((cat) => tagsByCategory[cat]?.length > 0)
+                  .map((category) => (
+                    <div key={category}>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                        {categoryLabels[category]}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tagsByCategory[category].map((tag) => {
+                          const selected = filterTagIds.includes(tag.id);
+                          return (
+                            <button
+                              key={tag.id}
+                              onClick={() => toggleFilterTag(tag.id)}
+                              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                                selected
+                                  ? "bg-accent text-white"
+                                  : "bg-accent-light text-accent-dark hover:bg-accent/20"
+                              }`}
+                            >
+                              {tag.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

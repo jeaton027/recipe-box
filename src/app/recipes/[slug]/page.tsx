@@ -1,18 +1,16 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
-import DeleteRecipeButton from "./DeleteRecipeButton";
 import ServingsMultiplier from "@/components/recipes/ServingsMultiplier";
 import AddToCollectionButton from "@/components/collections/AddToCollectionButton";
 import RecipeGallery from "@/components/recipes/RecipeGallery";
 import VariationPills from "@/components/recipes/VariationPills";
-import CreateVariationButton from "@/components/recipes/CreateVariationButton";
 import CompareButton from "@/components/recipes/CompareButton";
 import MoreFromSource from "@/components/recipes/MoreFromSource";
 import RecipeStatusToggle from "@/components/recipes/RecipeStatusToggle";
 import TagPills from "@/components/recipes/TagPills";
 import SeenInMenus from "@/components/menus/SeenInMenus";
+import RecipeActionsMenu from "@/components/recipes/RecipeActionsMenu";
 
 export default async function RecipeDetailPage({
   params,
@@ -81,38 +79,33 @@ export default async function RecipeDetailPage({
           {/* Desktop buttons */}
           <div className="ml-4 hidden items-center gap-2 sm:flex">
             <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
-            <Link
-              href={`/recipes/${recipe.slug}/edit`}
-              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
-            >
-              Edit
-            </Link>
-            <DeleteRecipeButton recipeId={recipe.id} />
+            <RecipeActionsMenu
+              recipeId={recipe.id}
+              recipeSlug={recipe.slug}
+              recipeThumbnail={recipe.thumbnail_url}
+              familyId={recipe.family_id}
+              siblingIds={siblingVariations.map((s) => s.id)}
+            />
           </div>
         </div>
-        {/* Mobile buttons — Delete left, Edit middle, Save right (thumb-friendly) */}
+        {/* Mobile buttons — ellipsis left, Save right (thumb-friendly) */}
         <div className="mt-4 flex items-center gap-2 sm:hidden">
-          <DeleteRecipeButton recipeId={recipe.id} />
-          <Link
-            href={`/recipes/${recipe.slug}/edit`}
-            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
-          >
-            Edit
-          </Link>
+          <RecipeActionsMenu
+            recipeId={recipe.id}
+            recipeSlug={recipe.slug}
+            recipeThumbnail={recipe.thumbnail_url}
+            familyId={recipe.family_id}
+            siblingIds={siblingVariations.map((s) => s.id)}
+          />
           <div className="ml-auto">
             <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
           </div>
         </div>
       </div>
 
-      {/* +Variation and Compare (left) and variation pills (right) — above thumbnail */}
+      {/* Compare (left) and variation pills (right) — above thumbnail */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <CreateVariationButton
-            recipeId={recipe.id}
-            familyId={recipe.family_id}
-            siblingIds={siblingVariations.map((s) => s.id)}
-          />
           <CompareButton
             currentRecipeId={recipe.id}
             currentRecipeSlug={recipe.slug}
@@ -236,7 +229,8 @@ export default async function RecipeDetailPage({
       )}
 
       {/* Related: Seen in menus + source */}
-      <section className="space-y-3">
+      <section id="related" className="mt-8 scroll-mt-20 space-y-3">
+        <h2 className="font-heading mb-3 text-xl font-semibold">Related</h2>
         <SeenInMenus recipeId={recipe.id} />
         {recipe.source_url && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

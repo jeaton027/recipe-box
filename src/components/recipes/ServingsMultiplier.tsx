@@ -38,7 +38,7 @@ export default function ServingsMultiplier({ servings, servingsMax, servingsType
           <h2 className="font-heading text-xl font-semibold">Ingredients</h2>
           {scaledServings !== null && (
             <span className="whitespace-nowrap text-sm text-muted">
-              <strong className="text-foreground">{scaledServings}{scaledServingsMax ? `–${scaledServingsMax}` : ""}</strong> {servingsType || "servings"}
+              <span className="text-foreground font-medium" >{scaledServings}{scaledServingsMax ? `–${scaledServingsMax}` : ""}</span> {servingsType || "servings"}
             </span>
           )}
         </div>
