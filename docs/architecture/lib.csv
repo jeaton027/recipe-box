@@ -1,0 +1,12 @@
+file,kind,purpose
+src/lib/supabase/server.ts,supabase-client,"Server-side Supabase client (cookie-based auth). Call via `await createClient()` in Server Components and Route Handlers."
+src/lib/supabase/client.ts,supabase-client,"Browser Supabase client for 'use client' components."
+src/lib/supabase/middleware.ts,supabase-client,"Session-refresh helper used by root middleware.ts."
+src/lib/types/database.ts,types,"TypeScript shape of every table: Recipe, Ingredient, Step, Tag, Collection, Menu, OriginalSnapshot, etc. Single source of truth — update when schema changes."
+src/lib/hooks/useWakeLock.ts,hook,"Screen Wake Lock API wrapper. Re-acquires on visibilitychange, releases on unmount. Returns 'active' | 'unsupported' | 'failed' | null."
+src/lib/utils/slug.ts,util,"Generate unique URL-safe slugs for recipes (handles collisions)."
+src/lib/utils/tag-helpers.ts,util,"Tag category labels, display order, quick-tag picks, specificity ranking (drives TagPills ordering)."
+src/lib/utils/compress-image.ts,util,"Client-side image compression → 1200px max, WebP, 60% quality. Used before upload."
+src/lib/utils/format-quantity.ts,util,"Decimal → unicode fraction (½, ¼, ⅓ …) or cleaned decimal. Used by ServingsMultiplier."
+src/lib/utils/daily-pick.ts,util,"Deterministic day-of-year seeded pick from an array + currentSeason() helper. Drives home-page seasonal section."
+src/lib/utils/search-recipes.ts,util,"Multi-word search across title_search, ingredients, tags."

@@ -569,11 +569,29 @@ export default function RecipePickerOverlay({
         <>
           <div
             className="fixed inset-0 z-[60] bg-black/20"
-            onClick={() => setFilterOpen(false)}
+            onClick={(e) => {
+              // The filter backdrop visually covers both the picker panel and
+              // the dimmed area outside it. Hit-test against the picker's
+              // bounding rect so a click "on" the picker dismisses only the
+              // filter, while a click truly outside dismisses both.
+              e.stopPropagation();
+              const rect = panelRef.current?.getBoundingClientRect();
+              const onPicker =
+                rect &&
+                e.clientX >= rect.left &&
+                e.clientX <= rect.right &&
+                e.clientY >= rect.top &&
+                e.clientY <= rect.bottom;
+              if (onPicker) {
+                setFilterOpen(false);
+              } else {
+                handleClose();
+              }
+            }}
           />
           <div
             ref={filterPanelRef}
-            className="fixed bottom-0 left-0 right-0 z-[70] flex max-h-[80vh] flex-col rounded-t-2xl bg-white shadow-xl md:left-6 md:right-auto md:top-20 md:bottom-6 md:w-[25rem] md:max-h-none md:rounded-xl"
+            className="fixed bottom-[60px] left-0 right-0 z-[70] flex max-h-[80vh] flex-col rounded-t-2xl bg-white shadow-xl md:left-6 md:right-auto md:top-20 md:bottom-6 md:w-[25rem] md:max-h-none md:rounded-xl"
           >
             {/* Sticky top bar */}
             <div className="flex items-center justify-between border-b border-border px-6 py-3">

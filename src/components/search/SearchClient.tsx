@@ -262,7 +262,7 @@ export default function SearchClient({
             className="fixed inset-0 z-40 bg-black/20"
             onClick={() => setFilterOpen(false)}
           />
-          <div className="fixed bottom-0 left-0 right-0 z-50 flex max-h-[80vh] flex-col rounded-t-2xl bg-white shadow-xl md:left-6 md:right-auto md:top-20 md:bottom-6 md:w-[25rem] md:max-h-none md:rounded-xl">
+          <div className="fixed bottom-[60px] left-0 right-0 z-50 flex max-h-[80vh] flex-col rounded-t-2xl bg-white shadow-xl md:left-6 md:right-auto md:top-20 md:bottom-6 md:w-[25rem] md:max-h-none md:rounded-xl">
             {/* Sticky top bar */}
             <div className="flex items-center justify-between border-b border-border px-6 py-3">
               <h2 className="font-heading text-lg font-semibold">Filters</h2>

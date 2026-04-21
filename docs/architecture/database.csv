@@ -1,0 +1,12 @@
+file,purpose
+supabase/migrations/001_initial_schema.sql,"Core tables: recipes, ingredients, steps, tags, recipe_tags, collections, collection_recipes. FTS index on title."
+supabase/migrations/002_add_gallery_images.sql,"Add gallery_images jsonb to recipes (multi-image support)."
+supabase/migrations/003_add_recipe_variations.sql,"Add family_id + variant_label: recipes can be siblings of one another."
+supabase/migrations/004_add_recipe_status.sql,"Add status column: 'saved' | 'tried' | 'favorite'. Drives RecipeStatusToggle."
+supabase/migrations/005_expand_tag_categories.sql,"Add tag categories: dish_type, baked_goods, ingredient, occasion, method."
+supabase/migrations/006_add_title_search_column.sql,"Denormalized title_search (lowercase, punctuation-stripped) for fast ilike search."
+supabase/migrations/007_add_servings_max.sql,"Add servings_max + servings_type for ranges (e.g. 4-6, 'cookies')."
+supabase/migrations/008_add_menus.sql,"menus + menu_recipes tables. course enum: starter/main/side/dessert/drink/other."
+supabase/migrations/009_add_original_snapshot.sql,"Add original_snapshot jsonb: immutable copy at first save or 'Lock as Original' click."
+supabase/migrations/010_backfill_original_snapshot.sql,"Backfill original_snapshot for recipes created before 009."
+supabase/migrations/011_add_last_cooked_at.sql,"Add last_cooked_at timestamp + partial index. Stamped on Cook Mode entry; powers 'Recently Made'."

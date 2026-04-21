@@ -15,10 +15,13 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // pb-16 on the outer container (not just <main>) so the Footer also
+  // clears the fixed mobile bottom-nav. MobileNav itself is fixed, so
+  // this padding just reserves viewport space for it.
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex min-h-full flex-col pb-16 md:pb-0">
       <Navbar />
-      <main className="flex-1 pb-16 md:pb-0">{children}</main>
+      <main className="flex-1">{children}</main>
       <Footer />
       <MobileNav />
     </div>

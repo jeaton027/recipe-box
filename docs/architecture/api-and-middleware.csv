@@ -1,0 +1,6 @@
+file,kind,method,purpose
+middleware.ts,middleware,*,"Runs on every request. Refreshes Supabase session cookies via src/lib/supabase/middleware.ts. Matcher excludes static assets."
+src/app/api/auth/callback/route.ts,api,GET,"OAuth + email-link callback. Exchanges auth code for session, redirects to app."
+src/app/api/import-recipe/route.ts,api,POST,"Fetches a URL, parses structured recipe data (JSON-LD / microdata / fallback), returns normalized shape."
+src/app/api/parse-recipe-text/route.ts,api,POST,"Parses pasted free-text into title, ingredients, steps, servings, times."
+src/app/api/instagram-oembed/route.ts,api,POST,"Fetches Instagram post metadata (og:image, author) for thumbnail + attribution."
