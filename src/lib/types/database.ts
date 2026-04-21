@@ -1,3 +1,32 @@
+export type OriginalSnapshotIngredient = {
+  name: string;
+  quantity: number | null;
+  quantity_max: number | null;
+  unit: string | null;
+  sort_order: number;
+};
+
+export type OriginalSnapshotStep = {
+  instruction: string;
+  sort_order: number;
+};
+
+export type OriginalSnapshot = {
+  captured_at: string; // ISO timestamp
+  source: "url_import" | "variation_copy" | "manual";
+  source_url: string | null;
+  title: string;
+  description: string | null;
+  servings: number | null;
+  servings_max: number | null;
+  servings_type: string | null;
+  prep_time_minutes: number | null;
+  cook_time_minutes: number | null;
+  notes: string | null;
+  ingredients: OriginalSnapshotIngredient[];
+  steps: OriginalSnapshotStep[];
+};
+
 export type Recipe = {
   id: string;
   user_id: string;
@@ -23,6 +52,7 @@ export type Recipe = {
   family_id: string | null;
   variant_label: string | null;
   status: "saved" | "tried" | "favorite";
+  original_snapshot: OriginalSnapshot | null;
   created_at: string;
   updated_at: string;
 };

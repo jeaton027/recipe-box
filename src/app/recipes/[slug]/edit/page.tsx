@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import RecipeForm from "@/components/recipes/RecipeForm";
 import RecipeStatusToggle from "@/components/recipes/RecipeStatusToggle";
-import type { RecipeWithDetails } from "@/lib/types/database";
+import ViewOriginalTrigger from "@/components/recipes/ViewOriginalTrigger";
+import type { OriginalSnapshot, RecipeWithDetails } from "@/lib/types/database";
 
 export default async function EditRecipePage({
   params,
@@ -62,6 +63,11 @@ export default async function EditRecipePage({
           initialStatus={recipe.status ?? "saved"}
           mode="reset"
         />
+        <div className="ml-auto">
+          <ViewOriginalTrigger
+            snapshot={(recipe.original_snapshot ?? null) as OriginalSnapshot | null}
+          />
+        </div>
       </div>
       <RecipeForm recipe={recipeWithDetails} tags={tags ?? []} />
     </div>

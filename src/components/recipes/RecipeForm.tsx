@@ -5,10 +5,11 @@ import { useRouter , useSearchParams} from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ImagePicker from "@/components/recipes/ImagePicker";
 import { generateUniqueSlug } from "@/lib/utils/slug";
-import type { RecipeWithDetails, Tag, TagCategory } from "@/lib/types/database";
+import type { OriginalSnapshot, RecipeWithDetails, Tag, TagCategory } from "@/lib/types/database";
 import { categoryLabels, quickTagCategories, categoryOrder } from "@/lib/utils/tag-helpers";
 import { compressImage } from "@/lib/utils/compress-image";
 import TagPickerOverlay from "@/components/recipes/TagPickerOverlay";
+import OverlayShell from "@/components/shared/OverlayShell";
 
 // § is used as a divider marker in the DB (unit field for ingredients, instruction prefix for steps)
 const DIVIDER_MARKER = "§";
@@ -218,6 +219,13 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Original snapshot state — only relevant for new recipes. If the user clicks
+  // "Lock as Original", we capture the form state at that moment into `lockedSnapshot`.
+  // On save, we write `lockedSnapshot` if present, else serialize the final form state.
+  // Once locked it cannot be unlocked; this is a one-time operation.
+  const [lockedSnapshot, setLockedSnapshot] = useState<OriginalSnapshot | null>(null);
+  const [confirmLockOpen, setConfirmLockOpen] = useState(false);
 
   const [dragIngredientIndex, setDragIngredientIndex] = useState<number | null>(null);
   const [dragIngredientOverIndex, setDragIngredientOverIndex] = useState<number | null>(null);
@@ -541,6 +549,76 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
     setThumbnailUrl((prev) => prev || publicUrl);
   }
 
+  // ── Original snapshot helpers ────────────────────────────────────────────────
+
+  // Serialize the current form state into an immutable OriginalSnapshot.
+  // Called either when the user clicks "Lock as Original" or (as a fallback)
+  // at save time if they never did.
+  function buildSnapshot(): OriginalSnapshot {
+    const source: OriginalSnapshot["source"] =
+      searchParams.get("source") === "import"
+        ? "url_import"
+        : searchParams.get("source") === "variation"
+        ? "variation_copy"
+        : "manual";
+
+    const snapIngredients: OriginalSnapshot["ingredients"] = ingredients
+      .map((item, idx) => {
+        if (item.kind === "divider") {
+          return {
+            name: item.label || " ",
+            quantity: null,
+            quantity_max: null,
+            unit: DIVIDER_MARKER,
+            sort_order: idx,
+          };
+        }
+        if (!item.name.trim()) return null;
+        return {
+          name: item.name.trim(),
+          quantity: parseFraction(item.quantity),
+          quantity_max: parseFraction(item.quantityMax),
+          unit: item.unit.trim() || null,
+          sort_order: idx,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+
+    const snapSteps: OriginalSnapshot["steps"] = steps
+      .map((item, idx) => {
+        if (item.kind === "divider") {
+          return {
+            instruction: DIVIDER_MARKER + (item.label || ""),
+            sort_order: idx,
+          };
+        }
+        if (!item.instruction.trim()) return null;
+        return { instruction: item.instruction.trim(), sort_order: idx };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+
+    return {
+      captured_at: new Date().toISOString(),
+      source,
+      source_url: sourceUrl.trim() || null,
+      title: title.trim(),
+      description: description.trim() || null,
+      servings: servings ? parseInt(servings) : null,
+      servings_max: servingsMax ? parseInt(servingsMax) : null,
+      servings_type: servingsType.trim() || null,
+      prep_time_minutes: prepTime ? parseInt(prepTime) : null,
+      cook_time_minutes: cookTime ? parseInt(cookTime) : null,
+      notes: notes.trim() || null,
+      ingredients: snapIngredients,
+      steps: snapSteps,
+    };
+  }
+
+  function handleConfirmLock() {
+    setLockedSnapshot(buildSnapshot());
+    setConfirmLockOpen(false);
+  }
+
   // ── Submit ───────────────────────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -624,7 +702,15 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         supabase.from("recipe_tags").delete().eq("recipe_id", recipeId),
       ]);
     } else {
-      const { data, error: insertError } = await supabase.from("recipes").insert(recipeData).select("id").single();
+      // Attach the original snapshot. Use the user's locked snapshot if they
+      // clicked "Lock as Original"; otherwise capture the current form state.
+      // This write happens once, on initial insert — never updated afterwards.
+      const snapshotToSave = lockedSnapshot ?? buildSnapshot();
+      const { data, error: insertError } = await supabase
+        .from("recipes")
+        .insert({ ...recipeData, original_snapshot: snapshotToSave })
+        .select("id")
+        .single();
       if (insertError || !data) { setError(insertError?.message ?? "Failed to create recipe"); setSaving(false); return; }
       recipeId = data.id;
     }
@@ -1380,7 +1466,74 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
           className="rounded-md px-4 py-2 text-sm font-medium text-muted hover:text-foreground">
           Cancel
         </button>
+
+        {/* Lock as Original — new recipes only. Once clicked, locked state is
+            permanent for this draft and will be written on save. */}
+        {!isEditing && (
+          <div className="ml-auto">
+            {lockedSnapshot ? (
+              <span
+                className="flex items-center gap-1.5 rounded-md bg-muted/10 px-3 py-1.5 text-xs font-medium text-muted"
+                title="The original snapshot is locked and will be saved with this recipe."
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                Original locked
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmLockOpen(true)}
+                className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:border-accent hover:text-accent-dark"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                Lock as Original
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Confirmation overlay for Lock as Original */}
+      {confirmLockOpen && (
+        <OverlayShell
+          open={confirmLockOpen}
+          onClose={() => setConfirmLockOpen(false)}
+          title="Lock as Original?"
+          maxWidth="max-w-md"
+        >
+          <div className="px-6 py-5">
+            <p className="text-sm leading-relaxed text-foreground">
+              This will save a permanent snapshot of the recipe as it is right now.
+              You&rsquo;ll still be able to edit the recipe going forward, but the
+              original snapshot <strong>cannot be changed or undone</strong>.
+            </p>
+            <p className="mt-3 text-sm text-muted">
+              If you need a different original later, you can create a new recipe
+              via &ldquo;Create a copy&rdquo; on the variation menu.
+            </p>
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t border-border bg-background/50 px-6 py-3">
+            <button
+              type="button"
+              onClick={() => setConfirmLockOpen(false)}
+              className="rounded-md px-4 py-1.5 text-sm font-medium text-muted hover:text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmLock}
+              className="rounded-md bg-red-500 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-600"
+            >
+              Save as Original
+            </button>
+          </div>
+        </OverlayShell>
+      )}
     </form>
   );
 }
