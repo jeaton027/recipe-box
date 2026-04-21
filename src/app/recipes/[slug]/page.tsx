@@ -88,23 +88,24 @@ export default async function RecipeDetailPage({
             />
           </div>
         </div>
-        {/* Mobile buttons — ellipsis left, Save right (thumb-friendly) */}
+        {/* Mobile buttons — Save left, ellipsis right (thumb-friendly) */}
         <div className="mt-4 flex items-center gap-2 sm:hidden">
-          <RecipeActionsMenu
-            recipeId={recipe.id}
-            recipeSlug={recipe.slug}
-            recipeThumbnail={recipe.thumbnail_url}
-            familyId={recipe.family_id}
-            siblingIds={siblingVariations.map((s) => s.id)}
-          />
+          <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
           <div className="ml-auto">
-            <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
+            <RecipeActionsMenu
+              recipeId={recipe.id}
+              recipeSlug={recipe.slug}
+              recipeThumbnail={recipe.thumbnail_url}
+              familyId={recipe.family_id}
+              siblingIds={siblingVariations.map((s) => s.id)}
+            />
           </div>
         </div>
       </div>
 
-      {/* Compare (left) and variation pills (right) — above thumbnail */}
+      {/* Variation pills (left) and Compare (right) — above thumbnail */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <VariationPills siblings={siblingVariations} />
         <div className="flex items-center gap-2">
           <CompareButton
             currentRecipeId={recipe.id}
@@ -114,7 +115,6 @@ export default async function RecipeDetailPage({
             familyId={recipe.family_id}
           />
         </div>
-        <VariationPills siblings={siblingVariations} />
       </div>
 
       {/* Thumbnail */}
