@@ -53,6 +53,7 @@ export type Recipe = {
   variant_label: string | null;
   status: "saved" | "tried" | "favorite";
   original_snapshot: OriginalSnapshot | null;
+  last_cooked_at: string | null;
   created_at: string;
   updated_at: string;
 };

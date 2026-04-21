@@ -6,6 +6,7 @@ import AddToCollectionButton from "@/components/collections/AddToCollectionButto
 import RecipeGallery from "@/components/recipes/RecipeGallery";
 import VariationPills from "@/components/recipes/VariationPills";
 import CompareButton from "@/components/recipes/CompareButton";
+import CookModeButton from "@/components/recipes/CookModeButton";
 import MoreFromSource from "@/components/recipes/MoreFromSource";
 import RecipeStatusToggle from "@/components/recipes/RecipeStatusToggle";
 import TagPills from "@/components/recipes/TagPills";
@@ -103,10 +104,10 @@ export default async function RecipeDetailPage({
         </div>
       </div>
 
-      {/* Variation pills (left) and Compare (right) — above thumbnail */}
+      {/* Variation pills (left) and Compare + Cook Mode (right) — above thumbnail */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <VariationPills siblings={siblingVariations} />
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2">
           <CompareButton
             currentRecipeId={recipe.id}
             currentRecipeSlug={recipe.slug}
@@ -114,6 +115,7 @@ export default async function RecipeDetailPage({
             currentRecipeThumbnail={recipe.thumbnail_url}
             familyId={recipe.family_id}
           />
+          <CookModeButton slug={recipe.slug} />
         </div>
       </div>
 

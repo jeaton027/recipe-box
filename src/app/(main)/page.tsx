@@ -41,12 +41,14 @@ export default async function HomePage() {
           .eq("tag_id", pickedTag.id)
       : Promise.resolve({ data: [] as { recipe_id: string }[] }),
 
-    // 2. Recently tried (tried + favorite, newest updated first)
+    // 2. Recently made — recipes the user actually entered Cook Mode for.
+    // Implicit signal (stamped on cook-mode entry) rather than a curated
+    // status bookmark. See src/components/cook/StampLastCooked.tsx.
     supabase
       .from("recipes")
       .select("*")
-      .in("status", ["tried", "favorite"])
-      .order("updated_at", { ascending: false })
+      .not("last_cooked_at", "is", null)
+      .order("last_cooked_at", { ascending: false })
       .limit(12),
 
     // 3. Recently added
@@ -141,7 +143,7 @@ export default async function HomePage() {
           {/* 2. Recently made */}
           <HomeSection
             title="Recently Made"
-            subtitle="Recipes you've tried or favorited"
+            subtitle="Recipes you've cooked recently"
             recipes={triedRecipes}
           />
 

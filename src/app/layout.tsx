@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Source_Sans_3 } from "next/font/google";
-import Navbar from "@/components/layout/Navbar";
-import MobileNav from "@/components/layout/MobileNav";
-import Footer from "@/components/layout/Footer";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -23,6 +20,11 @@ export const metadata: Metadata = {
     "Your personal recipe collection — gathered from the web, Instagram, and your own kitchen.",
 };
 
+/**
+ * Root layout: just fonts + html/body shell. Navbar / footer / mobile-nav
+ * live in the (main) route group's layout so that full-bleed routes like
+ * Cook Mode (under (cook)) can opt out of that chrome entirely.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -33,12 +35,7 @@ export default function RootLayout({
       lang="en"
       className={`${playfair.variable} ${sourceSans.variable} h-full`}
     >
-      <body className="flex min-h-full flex-col antialiased">
-        <Navbar />
-        <main className="flex-1 pb-16 md:pb-0">{children}</main>
-        <Footer />
-        <MobileNav />
-      </body>
+      <body className="min-h-full antialiased">{children}</body>
     </html>
   );
 }
