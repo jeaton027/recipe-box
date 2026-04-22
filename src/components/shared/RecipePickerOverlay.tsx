@@ -591,7 +591,7 @@ export default function RecipePickerOverlay({
           />
           <div
             ref={filterPanelRef}
-            className="fixed bottom-[60px] left-0 right-0 z-[70] flex max-h-[80vh] flex-col rounded-t-2xl bg-white shadow-xl md:left-6 md:right-auto md:top-20 md:bottom-6 md:w-[25rem] md:max-h-none md:rounded-xl"
+            className="fixed bottom-[60px] left-0 right-0 z-[70] flex max-h-[71vh] flex-col rounded-t-2xl bg-white shadow-xl md:left-6 md:right-auto md:top-20 md:bottom-6 md:w-[25rem] md:max-h-none md:rounded-xl"
           >
             {/* Sticky top bar */}
             <div className="flex items-center justify-between border-b border-border px-6 py-3">

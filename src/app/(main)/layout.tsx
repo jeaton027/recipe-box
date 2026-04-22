@@ -19,7 +19,7 @@ export default function MainLayout({
   // clears the fixed mobile bottom-nav. MobileNav itself is fixed, so
   // this padding just reserves viewport space for it.
   return (
-    <div className="flex min-h-full flex-col pb-16 md:pb-0">
+    <div className="flex min-h-screen flex-col pb-16 md:pb-0">
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
