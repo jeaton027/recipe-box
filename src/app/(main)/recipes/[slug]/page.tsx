@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import ServingsMultiplier from "@/components/recipes/ServingsMultiplier";
-import AddToCollectionButton from "@/components/collections/AddToCollectionButton";
+import SaveMenu from "@/components/recipes/SaveMenu";
 import RecipeGallery from "@/components/recipes/RecipeGallery";
 import VariationPills from "@/components/recipes/VariationPills";
 import CompareButton from "@/components/recipes/CompareButton";
@@ -62,47 +62,44 @@ export default async function RecipeDetailPage({
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
       {/* Header — desktop: side-by-side, mobile: stacked */}
       <div className="mb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-start gap-2">
-              <h1 className="font-heading text-3xl font-bold tracking-tight">
-                {recipe.title}
-              </h1>
-              <RecipeStatusToggle
-                recipeId={recipe.id}
-                initialStatus={recipe.status ?? "saved"}
-              />
-            </div>
-            {recipe.description && (
-              <p className="mt-2 text-muted">{recipe.description}</p>
-            )}
-          </div>
-          {/* Desktop buttons */}
-          <div className="ml-4 hidden items-center gap-2 sm:flex">
-            <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
-            <RecipeActionsMenu
-              recipeId={recipe.id}
-              recipeSlug={recipe.slug}
-              recipeThumbnail={recipe.thumbnail_url}
-              familyId={recipe.family_id}
-              siblingIds={siblingVariations.map((s) => s.id)}
-            />
-          </div>
-        </div>
-        {/* Mobile buttons — Save left, ellipsis right (thumb-friendly) */}
-        <div className="mt-4 flex items-center gap-2 sm:hidden">
-          <AddToCollectionButton recipeId={recipe.id} recipeThumbnail={recipe.thumbnail_url} />
-          <div className="ml-auto">
-            <RecipeActionsMenu
-              recipeId={recipe.id}
-              recipeSlug={recipe.slug}
-              recipeThumbnail={recipe.thumbnail_url}
-              familyId={recipe.family_id}
-              siblingIds={siblingVariations.map((s) => s.id)}
-            />
-          </div>
-        </div>
-      </div>
+		<div className="flex flex-col">
+			
+			{/* Top row: buttons aligned right */}
+			<div className="flex justify-end gap-2">
+				{/* Action buttons */}
+				<div className="flex items-center justify-end gap-2">
+					<SaveMenu
+						recipeId={recipe.id}
+						recipeThumbnail={recipe.thumbnail_url}
+					/>
+					<RecipeActionsMenu
+						recipeId={recipe.id}
+						recipeSlug={recipe.slug}
+						familyId={recipe.family_id}
+						siblingIds={siblingVariations.map((s) => s.id)}
+					/>
+				</div>
+			</div>
+
+			{/* Title + description */}
+			<div className="mt-4">
+				<div className="flex items-start gap-2">
+					<h1 className="font-heading text-3xl font-bold tracking-tight">
+					{recipe.title}
+					</h1>
+					<RecipeStatusToggle
+					recipeId={recipe.id}
+					initialStatus={recipe.status ?? "saved"}
+					/>
+				</div>
+
+				{recipe.description && (
+					<p className="mt-2 text-muted">{recipe.description}</p>
+				)}
+			</div>
+
+		</div>
+		</div>
 
       {/* Variation pills (left) and Compare + Cook Mode (right) — above thumbnail */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -115,7 +112,7 @@ export default async function RecipeDetailPage({
             currentRecipeThumbnail={recipe.thumbnail_url}
             familyId={recipe.family_id}
           />
-          <CookModeButton slug={recipe.slug} />
+          
         </div>
       </div>
 
@@ -127,6 +124,7 @@ export default async function RecipeDetailPage({
             alt={recipe.title}
             fill
             className="object-cover"
+            sizes="(max-width: 768px) 100vw, 672px"
             priority
           />
         </div>
@@ -172,8 +170,21 @@ export default async function RecipeDetailPage({
         </div>
       )}
 
-      {/* Tags — top 4 by specificity, rest collapsed */}
-      <TagPills tags={recipeTags} />
+		{/* Tags — top 4 by specificity, rest collapsed */}
+		<div className="flex items-start justify-between gap-2">
+			<TagPills tags={recipeTags} />
+			<a
+				href="#related"
+				className="shrink-0 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-medium text-muted hover:border-accent hover:text-accent"
+				title="Other Related Recipes"
+			>
+				Related
+			</a>
+		</div>
+
+		<div >
+			<CookModeButton slug={recipe.slug} />
+		</div>
 
       {/* Ingredients with multiplier */}
       {ingredients && ingredients.length > 0 && (

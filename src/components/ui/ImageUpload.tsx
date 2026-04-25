@@ -62,6 +62,7 @@ export default function ImageUpload({
                 alt="Preview"
                 fill
                 className="object-cover"
+                sizes="160px"
               />
               {uploading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/30">

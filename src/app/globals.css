@@ -10,6 +10,7 @@
   --color-accent-light: #e8e4f0;
   --color-accent-soft: #ddd7ea;
   --color-accent-blue: #6b8eae;
+  --color-contrast-light-green: #C4C8D4;
   --font-heading: var(--font-playfair);
   --font-body: var(--font-source-sans);
 }

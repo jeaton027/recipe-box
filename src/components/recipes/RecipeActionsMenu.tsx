@@ -3,37 +3,34 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import LinkToVariationOverlay from "@/components/recipes/LinkToVariationOverlay";
-import AddToMenuButton from "@/components/menus/AddToMenuButton";
+import ManageVariationsOverlay from "@/components/recipes/ManageVariationsOverlay";
 
 type Props = {
   recipeId: string;
   recipeSlug: string;
-  recipeThumbnail?: string | null;
   familyId: string | null;
   siblingIds: string[];
-  /** ID of the section to scroll to when "Related" is clicked (default "related"). */
-  relatedSectionId?: string;
 };
 
 /**
  * Vertical ellipsis menu on the recipe detail page.
- * Actions: Related (scroll), Link to Variation, Add to Menu, Edit, Delete.
+ * Actions: Manage Variations, Edit, Delete.
+ *
+ * "Related" and "Add to Menu" used to live here; both moved out to
+ * dedicated controls on the page (Related → inline button next to
+ * tags; Add to Menu → SaveMenu dropdown).
  */
 export default function RecipeActionsMenu({
   recipeId,
   recipeSlug,
-  recipeThumbnail,
   familyId,
   siblingIds,
-  relatedSectionId = "related",
 }: Props) {
   const router = useRouter();
   const supabase = createClient();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [variationOpen, setVariationOpen] = useState(false);
-  const [menuOverlayOpen, setMenuOverlayOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -57,20 +54,9 @@ export default function RecipeActionsMenu({
     };
   }, [menuOpen]);
 
-  function handleRelated() {
-    setMenuOpen(false);
-    const el = document.getElementById(relatedSectionId);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   function handleLinkVariation() {
     setMenuOpen(false);
     setVariationOpen(true);
-  }
-
-  function handleAddToMenu() {
-    setMenuOpen(false);
-    setMenuOverlayOpen(true);
   }
 
   function handleEdit() {
@@ -127,29 +113,11 @@ export default function RecipeActionsMenu({
     icon: React.ReactNode;
   }[] = [
     {
-      label: "Related",
-      onClick: handleRelated,
-      icon: (
-        <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
-        </svg>
-      ),
-    },
-    {
-      label: "Link to Variation",
+      label: "Manage Variations",
       onClick: handleLinkVariation,
       icon: (
         <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 0 0-5.656 0l-4 4a4 4 0 1 0 5.656 5.656l1.102-1.101m-.758-4.899a4 4 0 0 0 5.656 0l4-4a4 4 0 0 0-5.656-5.656l-1.1 1.1" />
-        </svg>
-      ),
-    },
-    {
-      label: "Add to Menu",
-      onClick: handleAddToMenu,
-      icon: (
-        <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
         </svg>
       ),
     },
@@ -217,21 +185,12 @@ export default function RecipeActionsMenu({
         )}
       </div>
 
-      <LinkToVariationOverlay
+      <ManageVariationsOverlay
         open={variationOpen}
         onClose={() => setVariationOpen(false)}
         recipeId={recipeId}
         familyId={familyId}
         siblingIds={siblingIds}
-      />
-
-      {/* AddToMenuButton rendered headless (no trigger) — controlled externally */}
-      <AddToMenuButton
-        recipeId={recipeId}
-        recipeThumbnail={recipeThumbnail}
-        trigger={() => null}
-        open={menuOverlayOpen}
-        onOpenChange={setMenuOverlayOpen}
       />
     </>
   );

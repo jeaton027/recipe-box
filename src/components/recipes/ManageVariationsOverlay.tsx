@@ -16,12 +16,14 @@ type Props = {
 };
 
 /**
- * Single overlay with three variation flows visible at once:
+ * Single overlay with variation flows visible at once:
  *   1. Create a copy (duplicates this recipe as a draft)
- *   2. Import from URL (imports an external recipe as a variation)
- *   3. Link an existing recipe (opens recipe picker)
+ *   2. Link an existing recipe (opens recipe picker)
+ *   3. Import from URL (imports an external recipe as a variation)
+ *   4. Remove as Variation — only when this recipe is in a family;
+ *      detaches it from the family.
  */
-export default function LinkToVariationOverlay({
+export default function ManageVariationsOverlay({
   open,
   onClose,
   recipeId,
@@ -45,6 +47,30 @@ export default function LinkToVariationOverlay({
     new Set()
   );
   const [linkLoading, setLinkLoading] = useState(false);
+
+  // Remove-as-variation state
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  async function handleRemoveFromFamily() {
+    if (removing) return;
+    setRemoving(true);
+    const { error } = await supabase
+      .from("recipes")
+      .update({ family_id: null, variant_label: null })
+      .eq("id", recipeId);
+
+    if (error) {
+      alert("Failed to remove from variation: " + error.message);
+      setRemoving(false);
+      setConfirmingRemove(false);
+      return;
+    }
+    setRemoving(false);
+    setConfirmingRemove(false);
+    onClose();
+    router.refresh();
+  }
 
   function handleClose() {
     setUrlInput("");
@@ -245,7 +271,7 @@ export default function LinkToVariationOverlay({
         <OverlayShell
           open={open}
           onClose={handleClose}
-          title="Link to Variation"
+          title="Manage Variations"
           maxWidth="max-w-lg"
         >
           <div className="flex flex-col divide-y divide-border">
@@ -284,7 +310,41 @@ export default function LinkToVariationOverlay({
               </button>
             </div>
 
-            {/* Option 2: Import from URL */}
+            {/* Option 2: Link an existing recipe */}
+            <div className="flex items-start gap-3 px-5 py-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent-light text-accent-dark">
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13.828 10.172a4 4 0 0 0-5.656 0l-4 4a4 4 0 1 0 5.656 5.656l1.102-1.101m-.758-4.899a4 4 0 0 0 5.656 0l4-4a4 4 0 0 0-5.656-5.656l-1.1 1.1"
+                  />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">
+                  Link an existing recipe
+                </p>
+                <p className="mt-0.5 text-xs text-muted">
+                  Pick another recipe from your box to add to this family.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenPicker}
+                className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-dark"
+              >
+                Choose
+              </button>
+            </div>
+
+            {/* Option 3: Import from URL */}
             <div className="px-5 py-4">
               <div className="flex items-start gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent-light text-accent-dark">
@@ -342,39 +402,65 @@ export default function LinkToVariationOverlay({
               )}
             </div>
 
-            {/* Option 3: Link an existing recipe */}
-            <div className="flex items-start gap-3 px-5 py-4">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent-light text-accent-dark">
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13.828 10.172a4 4 0 0 0-5.656 0l-4 4a4 4 0 1 0 5.656 5.656l1.102-1.101m-.758-4.899a4 4 0 0 0 5.656 0l4-4a4 4 0 0 0-5.656-5.656l-1.1 1.1"
-                  />
-                </svg>
+            {/* Option 4: Remove as Variation (only when in a family) */}
+            {familyId && (
+              <div className="px-5 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-red-50 text-red-600">
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244M9.88 14.12 14.12 9.88"
+                      />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">
+                      Remove as Variation
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      Detach this recipe from its family. Other variations stay linked.
+                    </p>
+                  </div>
+                  {confirmingRemove ? (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={handleRemoveFromFamily}
+                        disabled={removing}
+                        className="rounded-md bg-red-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                      >
+                        {removing ? "Removing..." : "Confirm"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingRemove(false)}
+                        disabled={removing}
+                        className="rounded-md px-2 py-1.5 text-sm font-medium text-muted hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingRemove(true)}
+                      className="shrink-0 rounded-md bg-red-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-600"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">
-                  Link an existing recipe
-                </p>
-                <p className="mt-0.5 text-xs text-muted">
-                  Pick another recipe from your box to add to this family.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleOpenPicker}
-                className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-dark"
-              >
-                Choose
-              </button>
-            </div>
+            )}
+
           </div>
         </OverlayShell>
       )}
