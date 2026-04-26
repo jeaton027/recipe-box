@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { setImportedRecipe } from "@/lib/storage/recipe-handoff";
+import type { ImportedRecipePayload } from "@/lib/types/recipe-handoff";
 
 type Mode = "url" | "paste" | "image";
 
@@ -73,7 +75,9 @@ export default function ImportForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Import failed");
 
-      sessionStorage.setItem("importedRecipe", JSON.stringify({ ...data, source_url: url }));
+      // The /api/import-recipe response is JSON-typed any; this cast asserts
+      // the contract so the spread + setImportedRecipe call is type-checked.
+      setImportedRecipe({ ...(data as ImportedRecipePayload), source_url: url });
       router.push("/recipes/new?source=import");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -100,10 +104,11 @@ export default function ImportForm() {
       if (!res.ok) throw new Error(data.error ?? "Parse failed");
 
       // Attach Instagram thumbnail and source URL
-      const importData = {
-        ...data,
+      const parsed = data as ImportedRecipePayload;
+      const importData: ImportedRecipePayload = {
+        ...parsed,
         source_url: url,
-        images: igThumbnail ? [igThumbnail, ...(data.images ?? [])] : (data.images ?? []),
+        images: igThumbnail ? [igThumbnail, ...(parsed.images ?? [])] : (parsed.images ?? []),
       };
 
       // Use IG author as title hint if parser didn't find one
@@ -111,7 +116,7 @@ export default function ImportForm() {
         importData.title = `Recipe by ${igAuthor}`;
       }
 
-      sessionStorage.setItem("importedRecipe", JSON.stringify(importData));
+      setImportedRecipe(importData);
       router.push("/recipes/new?source=import");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -136,7 +141,7 @@ export default function ImportForm() {
         throw new Error("Couldn't detect ingredients or steps. Try adding \"Ingredients\" and \"Instructions\" as section labels.");
       }
 
-      sessionStorage.setItem("importedRecipe", JSON.stringify(data));
+      setImportedRecipe(data as ImportedRecipePayload);
       router.push("/recipes/new?source=import");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");

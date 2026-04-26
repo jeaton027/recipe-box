@@ -3,6 +3,10 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter , useSearchParams} from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import {
+  consumeImportedRecipe,
+  consumeVariationRecipe,
+} from "@/lib/storage/recipe-handoff";
 import ImagePicker from "@/components/recipes/ImagePicker";
 import { generateUniqueSlug } from "@/lib/utils/slug";
 import type { OriginalSnapshot, RecipeWithDetails, Tag, TagCategory } from "@/lib/types/database";
@@ -287,10 +291,8 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
 
   useEffect(() => {
     if (searchParams.get("source") === "import") {
-      const raw = sessionStorage.getItem("importedRecipe");
-      if (raw) {
-        const data = JSON.parse(raw);
-        sessionStorage.removeItem("importedRecipe");
+      const data = consumeImportedRecipe();
+      if (data) {
         setTitle(data.title ?? "");
         setDescription(data.description ?? "");
         setServings(data.servings?.toString() ?? "");
@@ -304,14 +306,14 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         if (data.bake_temp_max) { setBakeTempMax(data.bake_temp_max.toString()); setShowBakeTempMax(true); }
         if (data.bake_temp_unit) setBakeTempUnit(data.bake_temp_unit);
         setIngredients(
-          data.ingredients?.map((i: { quantity: string | null; quantity_max: string | null; unit: string | null; name: string }): IngredientItem =>
+          data.ingredients?.map((i): IngredientItem =>
             i.unit === DIVIDER_MARKER
               ? { kind: "divider", label: i.name }
               : { kind: "ingredient", name: i.name, quantity: i.quantity ?? "", quantityMax: i.quantity_max ?? "", showMax: !!i.quantity_max, unit: i.unit ?? "" }
           ) ?? [{ kind: "ingredient", name: "", quantity: "", quantityMax: "", showMax: false, unit: "" }]
         );
         setSteps(
-          data.steps?.map((s: string): StepItem =>
+          data.steps?.map((s): StepItem =>
             s.startsWith(DIVIDER_MARKER)
               ? { kind: "divider", label: s.slice(1) }
               : { kind: "step", instruction: s }
@@ -331,13 +333,12 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
       }
     } else if (searchParams.get("source") === "variation") {
       // Loading a variation draft — no DB writes have occurred yet. The
-      // source recipe's data was placed in sessionStorage by the
-      // CreateVariationButton. We materialize everything into form state,
-      // and only commit to the DB when the user clicks Save.
-      const raw = sessionStorage.getItem("variationRecipe");
-      if (raw) {
-        const data = JSON.parse(raw);
-        sessionStorage.removeItem("variationRecipe");
+      // source recipe's data was placed in sessionStorage by
+      // ManageVariationsOverlay's "Create a copy" action. We materialize
+      // everything into form state, and only commit to the DB when the
+      // user clicks Save.
+      const data = consumeVariationRecipe();
+      if (data) {
         setTitle(data.title ?? "");
         setDescription(data.description ?? "");
         setServings(data.servings?.toString() ?? "");
@@ -357,7 +358,7 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         // Ingredients arrive in DB shape: { name, quantity, quantity_max, unit, sort_order }
         setIngredients(
           data.ingredients?.length
-            ? data.ingredients.map((i: { quantity: number | null; quantity_max: number | null; unit: string | null; name: string }): IngredientItem =>
+            ? data.ingredients.map((i): IngredientItem =>
                 i.unit === DIVIDER_MARKER
                   ? { kind: "divider", label: i.name }
                   : { kind: "ingredient", name: i.name, quantity: formatQtyForInput(i.quantity), quantityMax: formatQtyForInput(i.quantity_max), showMax: i.quantity_max !== null && i.quantity_max !== undefined, unit: i.unit ?? "" }
@@ -367,7 +368,7 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         // Steps arrive in DB shape: { instruction, sort_order }
         setSteps(
           data.steps?.length
-            ? data.steps.map((s: { instruction: string }): StepItem =>
+            ? data.steps.map((s): StepItem =>
                 s.instruction.startsWith(DIVIDER_MARKER)
                   ? { kind: "divider", label: s.instruction.slice(1) }
                   : { kind: "step", instruction: s.instruction }

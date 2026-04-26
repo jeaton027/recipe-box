@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parseIngredientLine } from "@/lib/parsers/ingredient";
+import { extractBakeFromSteps } from "@/lib/parsers/bake";
 
 const INGREDIENT_HEADERS = /^(ingredients?|what you('ll)? need):?$/i;
 const DIVIDER_FOR_THE = /^for\s+(?:the\s+)?(.+?)[:.]?\s*$/i;
@@ -20,55 +22,6 @@ function decodeHtml(str: string): string {
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
     .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
     .replace(/&amp;/gi, "&");
-}
-
-// Common units for compact matching (no space between number and unit, e.g. "400g")
-const COMPACT_UNITS = "g|kg|ml|l|oz|lb|lbs|tsp|tbsp|cup|cups|c|T|t";
-
-function parseIngredientLine(str: string): {
-  quantity: string | null;
-  quantity_max: string | null;
-  unit: string | null;
-  name: string;
-} {
-  const clean = str.trim();
-
-  // Range + unit + name: "1-2 tsp sugar", "1/4-1/2 C flour"
-  const mr = clean.match(
-    /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
-  );
-  if (mr) return { quantity: mr[1].trim(), quantity_max: mr[2].trim(), unit: mr[3], name: decodeHtml(mr[4].trim()) };
-
-  // Range + name (no unit): "1-2 eggs"
-  const mr2 = clean.match(
-    /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+(.+)$/
-  );
-  if (mr2) return { quantity: mr2[1].trim(), quantity_max: mr2[2].trim(), unit: null, name: decodeHtml(mr2[3].trim()) };
-
-  // Compact range + unit + name: "200-250g flour"
-  const mrc = clean.match(
-    new RegExp(`^([\\d.]+)\\s*[-–]\\s*([\\d.]+)\\s*(${COMPACT_UNITS})\\s+(.+)$`, "i")
-  );
-  if (mrc) return { quantity: mrc[1], quantity_max: mrc[2], unit: mrc[3], name: decodeHtml(mrc[4].trim()) };
-
-  // Compact quantity + unit + name: "400g flour", "2tbsp sugar", "1/2c milk"
-  const mc = clean.match(
-    new RegExp(`^([\\d.\\/⅛¼⅓⅜½⅝⅔¾⅞\\s]+?)\\s*(${COMPACT_UNITS})\\s+(.+)$`, "i")
-  );
-  if (mc) return { quantity: mc[1].trim(), quantity_max: null, unit: mc[2], name: decodeHtml(mc[3].trim()) };
-
-  // Single quantity + unit + name: "1 1/2 cups all-purpose flour"
-  const m = clean.match(
-    /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
-  );
-  if (m) return { quantity: m[1].trim(), quantity_max: null, unit: m[2], name: decodeHtml(m[3].trim()) };
-
-  // Single quantity + name (no unit): "2 eggs"
-  const m2 = clean.match(/^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+(.+)$/);
-  if (m2) return { quantity: m2[1].trim(), quantity_max: null, unit: null, name: decodeHtml(m2[2].trim()) };
-
-  // Fallback: whole string as name
-  return { quantity: null, quantity_max: null, unit: null, name: decodeHtml(str) };
 }
 
 export async function POST(req: NextRequest) {
@@ -223,27 +176,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Extract bake temp and time from step text
-  const allStepText = steps.join(" ");
-
-  let bakeTemp: number | null = null;
-  let bakeTempUnit: string | null = null;
-  const tempMatch = allStepText.match(/preheat(?:\s+the)?(?:\s+oven)?\s+to\s+(\d+)\s*(?:°\s*|degrees?\s*)(F|C|fahrenheit|celsius)/i);
-  if (tempMatch) {
-    bakeTemp = parseInt(tempMatch[1]);
-    const rawUnit = tempMatch[2].toLowerCase();
-    bakeTempUnit = rawUnit.startsWith("c") ? "C" : "F";
-  }
-
-  let bakeTime: number | null = null;
-  let bakeTimeMax: number | null = null;
-  let bakeTimeUnit: string | null = null;
-  const timeMatch = allStepText.match(/bake\s+.*?for\s+(\d+)\s*(?:(?:to|[-–])\s*(\d+))?\s*(min(?:utes?)?|hrs?|hours?)/i);
-  if (timeMatch) {
-    bakeTime = parseInt(timeMatch[1]);
-    bakeTimeMax = timeMatch[2] ? parseInt(timeMatch[2]) : null;
-    const rawTimeUnit = timeMatch[3].toLowerCase();
-    bakeTimeUnit = rawTimeUnit.startsWith("h") ? "hr" : "min";
-  }
+  const bake = extractBakeFromSteps(steps);
 
   return NextResponse.json({
     title,
@@ -252,12 +185,7 @@ export async function POST(req: NextRequest) {
     servings_type: servingsType || null,
     prep_time_minutes: prepTime,
     cook_time_minutes: cookTime,
-    bake_time: bakeTime,
-    bake_time_max: bakeTimeMax,
-    bake_time_unit: bakeTimeUnit,
-    bake_temp: bakeTemp,
-    bake_temp_max: null,
-    bake_temp_unit: bakeTempUnit,
+    ...bake,
     notes: notesLines.length ? notesLines.join("\n") : null,
     ingredients,
     steps,

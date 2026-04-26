@@ -1,5 +1,11 @@
 // fetches and parses
 import { NextRequest, NextResponse } from "next/server";
+import {
+  parseIngredientLine,
+  hasNumber,
+  type ParsedIngredient,
+} from "@/lib/parsers/ingredient";
+import { extractBakeFromSteps } from "@/lib/parsers/bake";
 
 const NOTES_MAX_CHARS = 2000;
 
@@ -258,13 +264,6 @@ export async function POST(req: NextRequest) {
   // the JSON-LD recipeIngredient array but keep them in the HTML. We scrape
   // the DOM to recover group names and interleave them as § dividers.
 
-  type ParsedIngredient = {
-    quantity: string | null;
-    quantity_max: string | null;
-    unit: string | null;
-    name: string;
-  };
-
   // ── HTML-based ingredient group extraction ──
   // Returns an ordered list: group headers as { divider: "Section Name" }
   // and ingredient text as { text: "2 cups flour" }.
@@ -313,37 +312,6 @@ export async function POST(req: NextRequest) {
     return found ? results : null;
   }
 
-  // ── Parse a single ingredient string into structured parts ──
-  const FRAC_CHARS = "⅛¼⅓⅜½⅝⅔¾⅞";
-  const hasNumber = (s: string) =>
-    /\d/.test(s) || [...s].some((c) => FRAC_CHARS.includes(c));
-
-  function parseIngredientString(str: string): ParsedIngredient {
-    // Range: "1-2 tsp sugar" or "1/4-1/2 C flour"
-    const mr = str.match(
-      /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
-    );
-    if (mr) {
-      return { quantity: mr[1].trim() || null, quantity_max: mr[2].trim() || null, unit: mr[3], name: mr[4] };
-    }
-    // Range without unit: "1-2 eggs"
-    const mr2 = str.match(
-      /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s*(?:[-–]|to)\s*([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+(.+)$/
-    );
-    if (mr2) {
-      return { quantity: mr2[1].trim() || null, quantity_max: mr2[2].trim() || null, unit: null, name: mr2[3] };
-    }
-    // Single quantity: optional number/fraction, optional unit word, rest is name
-    const m = str.match(
-      /^([\d.\s\/⅛¼⅓⅜½⅝⅔¾⅞]+)\s+([a-zA-Z]+\.?)\s+(.+)$/
-    );
-    if (m) {
-      return { quantity: m[1].trim() || null, quantity_max: null, unit: m[2], name: m[3] };
-    }
-    // backup: whole string as name
-    return { quantity: null, quantity_max: null, unit: null, name: str };
-  }
-
   // ── Build ingredient list: prefer HTML groups (has dividers), fall back to JSON-LD ──
   const rawIngredients: string[] = Array.isArray(schema.recipeIngredient)
     ? schema.recipeIngredient.map(String)
@@ -358,7 +326,7 @@ export async function POST(req: NextRequest) {
       if (entry.divider) {
         return { quantity: null, quantity_max: null, unit: "§", name: entry.divider };
       }
-      return parseIngredientString(entry.text!);
+      return parseIngredientLine(entry.text!);
     });
   } else {
     // Fall back to JSON-LD with heuristic header detection
@@ -372,7 +340,7 @@ export async function POST(req: NextRequest) {
           return { quantity: null, quantity_max: null, unit: "§", name: str.trim() };
         }
       }
-      return parseIngredientString(str);
+      return parseIngredientLine(str);
     });
   }
 
@@ -456,27 +424,7 @@ export async function POST(req: NextRequest) {
   ])];
 
   // 9) Extract bake temp and time from step text
-  const allStepText = steps.join(" ");
-
-  let bakeTemp: number | null = null;
-  let bakeTempUnit: string | null = null;
-  const tempMatch = allStepText.match(/preheat(?:\s+the)?(?:\s+oven)?\s+to\s+(\d+)\s*(?:°\s*|degrees?\s*)(F|C|fahrenheit|celsius)/i);
-  if (tempMatch) {
-    bakeTemp = parseInt(tempMatch[1]);
-    const rawUnit = tempMatch[2].toLowerCase();
-    bakeTempUnit = rawUnit.startsWith("c") ? "C" : "F";
-  }
-
-  let bakeTime: number | null = null;
-  let bakeTimeMax: number | null = null;
-  let bakeTimeUnit: string | null = null;
-  const timeMatch = allStepText.match(/bake\s+.*?for\s+(\d+)\s*(?:(?:to|[-–])\s*(\d+))?\s*(min(?:utes?)?|hrs?|hours?)/i);
-  if (timeMatch) {
-    bakeTime = parseInt(timeMatch[1]);
-    bakeTimeMax = timeMatch[2] ? parseInt(timeMatch[2]) : null;
-    const rawTimeUnit = timeMatch[3].toLowerCase();
-    bakeTimeUnit = rawTimeUnit.startsWith("h") ? "hr" : "min";
-  }
+  const bake = extractBakeFromSteps(steps);
 
   return NextResponse.json({
     title: decodeHtml(String(schema.name ?? "")),
@@ -484,12 +432,7 @@ export async function POST(req: NextRequest) {
     servings: parseServings(schema.recipeYield),
     prep_time_minutes: parseDuration(schema.prepTime),
     cook_time_minutes: parseDuration(schema.cookTime),
-    bake_time: bakeTime,
-    bake_time_max: bakeTimeMax,
-    bake_time_unit: bakeTimeUnit,
-    bake_temp: bakeTemp,
-    bake_temp_max: null,
-    bake_temp_unit: bakeTempUnit,
+    ...bake,
     notes: extractNotes(schema, html),
     images: allImages,
     ingredients: ingredients.map((i) => ({ ...i, name: decodeHtml(i.name), unit: i.unit ? decodeHtml(i.unit) : i.unit })),

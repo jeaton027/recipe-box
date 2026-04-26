@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import {
+  setImportedRecipe,
+  setVariationRecipe,
+} from "@/lib/storage/recipe-handoff";
+import type { ImportedRecipePayload } from "@/lib/types/recipe-handoff";
 import type { Recipe } from "@/lib/types/database";
 import OverlayShell from "@/components/shared/OverlayShell";
 import RecipePickerOverlay from "@/components/shared/RecipePickerOverlay";
@@ -133,7 +138,7 @@ export default function ManageVariationsOverlay({
         _variationSourceId: source.id,
       };
 
-      sessionStorage.setItem("variationRecipe", JSON.stringify(variationData));
+      setVariationRecipe(variationData);
       router.push("/recipes/new?source=variation");
     } catch (e) {
       console.error("Create variation failed:", e);
@@ -177,14 +182,11 @@ export default function ManageVariationsOverlay({
         return;
       }
 
-      sessionStorage.setItem(
-        "importedRecipe",
-        JSON.stringify({
-          ...data,
-          source_url: trimmed,
-          _variationSourceId: recipeId,
-        })
-      );
+      setImportedRecipe({
+        ...(data as ImportedRecipePayload),
+        source_url: trimmed,
+        _variationSourceId: recipeId,
+      });
       router.push("/recipes/new?source=import");
     } catch {
       setUrlError("Import failed. Check your connection and try again.");
