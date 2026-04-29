@@ -21,7 +21,9 @@ export type OriginalSnapshot = {
   servings_max: number | null;
   servings_type: string | null;
   prep_time_minutes: number | null;
+  prep_time_minutes_max: number | null;
   cook_time_minutes: number | null;
+  cook_time_minutes_max: number | null;
   notes: string | null;
   ingredients: OriginalSnapshotIngredient[];
   steps: OriginalSnapshotStep[];
@@ -37,7 +39,9 @@ export type Recipe = {
   servings_max: number | null;
   servings_type: string | null;
   prep_time_minutes: number | null;
+  prep_time_minutes_max: number | null;
   cook_time_minutes: number | null;
+  cook_time_minutes_max: number | null;
   notes: string | null;
   source_url: string | null;
   thumbnail_url: string | null;
@@ -136,7 +140,9 @@ export type RecipeFormData = {
   description?: string;
   servings?: number;
   prep_time_minutes?: number;
+  prep_time_minutes_max?: number;
   cook_time_minutes?: number;
+  cook_time_minutes_max?: number;
   notes?: string;
   source_url?: string;
   is_image_only?: boolean;

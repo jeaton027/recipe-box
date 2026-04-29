@@ -115,18 +115,20 @@ export default function OriginalSnapshotOverlay({
                 {snapshot.servings_type || "servings"}
               </span>
             )}
-            {snapshot.prep_time_minutes && (
+            {snapshot.prep_time_minutes != null && (
               <span>
                 <strong className="text-foreground/80">
                   {snapshot.prep_time_minutes}
+                  {snapshot.prep_time_minutes_max != null && `–${snapshot.prep_time_minutes_max}`}
                 </strong>{" "}
                 min prep
               </span>
             )}
-            {snapshot.cook_time_minutes && (
+            {snapshot.cook_time_minutes != null && (
               <span>
                 <strong className="text-foreground/80">
                   {snapshot.cook_time_minutes}
+                  {snapshot.cook_time_minutes_max != null && `–${snapshot.cook_time_minutes_max}`}
                 </strong>{" "}
                 min cook
               </span>

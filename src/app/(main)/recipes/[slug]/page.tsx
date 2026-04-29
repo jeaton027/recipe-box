@@ -138,14 +138,22 @@ export default async function RecipeDetailPage({
       {/* Meta: times + bake (servings live with the ingredients multiplier) */}
       {(recipe.prep_time_minutes || recipe.cook_time_minutes || recipe.bake_temp) && (
         <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted">
-          {recipe.prep_time_minutes && (
+          {recipe.prep_time_minutes != null && (
             <span className="flex gap-1">
-              <strong className="text-foreground">{recipe.prep_time_minutes}</strong> min prep
+              <strong className="text-foreground">
+                {recipe.prep_time_minutes}
+                {recipe.prep_time_minutes_max != null && `–${recipe.prep_time_minutes_max}`}
+              </strong>{" "}
+              min prep
             </span>
           )}
-          {recipe.cook_time_minutes && (
+          {recipe.cook_time_minutes != null && (
             <span className="flex gap-1">
-              <strong className="text-foreground">{recipe.cook_time_minutes}</strong> min cook
+              <strong className="text-foreground">
+                {recipe.cook_time_minutes}
+                {recipe.cook_time_minutes_max != null && `–${recipe.cook_time_minutes_max}`}
+              </strong>{" "}
+              min cook
             </span>
           )}
           {(recipe.bake_time || recipe.bake_temp) && (

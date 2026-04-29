@@ -54,7 +54,7 @@ export default function VariationPills({ siblings }: { siblings: Sibling[] }) {
             Variations ▾
           </button>
           {dropdownOpen && (
-            <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-md border border-border bg-white py-1 shadow-lg">
+            <div className="absolute left-0 top-full z-20 mt-1 min-w-[180px] rounded-md border border-border bg-white py-1 shadow-lg">
               {siblings.map((sibling) => (
                 <Link
                   key={sibling.id}

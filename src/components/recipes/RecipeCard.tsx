@@ -43,8 +43,8 @@ export default function RecipeCard({ recipe }: { recipe: Recipe }) {
           <p className="mt-1 text-xs text-muted">
             {[
               recipe.servings && `${recipe.servings} ${recipe.servings_type || "servings"}`,
-              recipe.prep_time_minutes && `${recipe.prep_time_minutes} min prep`,
-              recipe.cook_time_minutes && `${recipe.cook_time_minutes} min cook`,
+              recipe.prep_time_minutes && `${recipe.prep_time_minutes}${recipe.prep_time_minutes_max ? `–${recipe.prep_time_minutes_max}` : ""} min prep`,
+              recipe.cook_time_minutes && `${recipe.cook_time_minutes}${recipe.cook_time_minutes_max ? `–${recipe.cook_time_minutes_max}` : ""} min cook`,
             ].filter(Boolean).join(" · ")}
           </p>
         )}

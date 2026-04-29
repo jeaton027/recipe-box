@@ -29,7 +29,9 @@ export type RecipeHandoffMeta = {
   servings_max?: number | null;
   servings_type?: string | null;
   prep_time_minutes?: number | null;
+  prep_time_minutes_max?: number | null;
   cook_time_minutes?: number | null;
+  cook_time_minutes_max?: number | null;
   bake_time?: number | null;
   bake_time_max?: number | null;
   bake_time_unit?: "min" | "hr" | null;

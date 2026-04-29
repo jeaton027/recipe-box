@@ -12,63 +12,12 @@ import { generateUniqueSlug } from "@/lib/utils/slug";
 import type { OriginalSnapshot, RecipeWithDetails, Tag, TagCategory } from "@/lib/types/database";
 import { categoryLabels, quickTagCategories, categoryOrder } from "@/lib/utils/tag-helpers";
 import { compressImage } from "@/lib/utils/compress-image";
+import { parseFraction, formatQtyForInput } from "@/lib/utils/format-quantity";
 import TagPickerOverlay from "@/components/recipes/TagPickerOverlay";
 import OverlayShell from "@/components/shared/OverlayShell";
 
 // § is used as a divider marker in the DB (unit field for ingredients, instruction prefix for steps)
 const DIVIDER_MARKER = "§";
-
-// Map unicode fraction characters to their decimal values
-const UNICODE_FRACTIONS: Record<string, number> = {
-  "⅛": 1/8, "¼": 1/4, "⅓": 1/3, "⅜": 3/8, "½": 1/2,
-  "⅝": 5/8, "⅔": 2/3, "¾": 3/4, "⅞": 7/8,
-};
-
-// Replace unicode fractions with decimal equivalents before parsing
-function normalizeUnicodeFractions(str: string): string {
-  return str.replace(/[⅛¼⅓⅜½⅝⅔¾⅞]/g, (ch) => ` ${UNICODE_FRACTIONS[ch]}`);
-}
-
-// Parse "1/3", "1 1/2", "2", "½", "1 ¾" etc. to decimal for DB storage
-function parseFraction(str: string): number | null {
-  if (!str.trim()) return null;
-  const normalized = normalizeUnicodeFractions(str);
-  const parts = normalized.trim().split(/\s+/);
-  let result = 0;
-  for (const part of parts) {
-    if (part.includes("/")) {
-      const [num, den] = part.split("/");
-      const n = parseFloat(num);
-      const d = parseFloat(den);
-      if (!isNaN(n) && !isNaN(d) && d !== 0) result += n / d;
-    } else {
-      const n = parseFloat(part);
-      if (!isNaN(n)) result += n;
-    }
-  }
-  return result === 0 ? null : result;
-}
-
-// Convert a stored decimal back to a readable fraction string for form display
-function formatQtyForInput(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "";
-  const whole = Math.floor(value);
-  const frac = value - whole;
-  if (frac < 0.01) return whole > 0 ? whole.toString() : "";
-  if (frac > 0.99) return (whole + 1).toString();
-  const candidates: [number, string][] = [
-    [1 / 8, "1/8"], [1 / 4, "1/4"], [1 / 3, "1/3"], [3 / 8, "3/8"],
-    [1 / 2, "1/2"], [5 / 8, "5/8"], [2 / 3, "2/3"], [3 / 4, "3/4"], [7 / 8, "7/8"],
-  ];
-  let best = candidates[0];
-  let bestDiff = Math.abs(frac - candidates[0][0]);
-  for (const c of candidates) {
-    const diff = Math.abs(frac - c[0]);
-    if (diff < bestDiff) { bestDiff = diff; best = c; }
-  }
-  if (bestDiff > 0.05) return value.toFixed(2);
-  return whole === 0 ? best[1] : `${whole} ${best[1]}`;
-}
 
 type IngredientItem =
   | { kind: "ingredient"; name: string; quantity: string; quantityMax: string; showMax: boolean; unit: string }
@@ -164,7 +113,11 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
   const [showServingsMax, setShowServingsMax] = useState(!!recipe?.servings_max);
   const [servingsType, setServingsType] = useState(recipe?.servings_type ?? "");
   const [prepTime, setPrepTime] = useState(recipe?.prep_time_minutes?.toString() ?? "");
+  const [prepTimeMax, setPrepTimeMax] = useState(recipe?.prep_time_minutes_max?.toString() ?? "");
+  const [showPrepTimeMax, setShowPrepTimeMax] = useState(!!recipe?.prep_time_minutes_max);
   const [cookTime, setCookTime] = useState(recipe?.cook_time_minutes?.toString() ?? "");
+  const [cookTimeMax, setCookTimeMax] = useState(recipe?.cook_time_minutes_max?.toString() ?? "");
+  const [showCookTimeMax, setShowCookTimeMax] = useState(!!recipe?.cook_time_minutes_max);
   const [bakeTime, setBakeTime] = useState(recipe?.bake_time?.toString() ?? "");
   const [bakeTimeMax, setBakeTimeMax] = useState(recipe?.bake_time_max?.toString() ?? "");
   const [showBakeTimeMax, setShowBakeTimeMax] = useState(!!recipe?.bake_time_max);
@@ -242,6 +195,8 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
 
   // Refs for focusing the "max" input after a dash-split
   const servingsMaxRef = useRef<HTMLInputElement>(null);
+  const prepTimeMaxRef = useRef<HTMLInputElement>(null);
+  const cookTimeMaxRef = useRef<HTMLInputElement>(null);
   const bakeTimeMaxRef = useRef<HTMLInputElement>(null);
   const bakeTempMaxRef = useRef<HTMLInputElement>(null);
   // Dynamic refs for ingredient quantity max inputs
@@ -298,7 +253,9 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         setServings(data.servings?.toString() ?? "");
         if (data.servings_max) { setServingsMax(data.servings_max.toString()); setShowServingsMax(true); }
         setPrepTime(data.prep_time_minutes?.toString() ?? "");
+        if (data.prep_time_minutes_max) { setPrepTimeMax(data.prep_time_minutes_max.toString()); setShowPrepTimeMax(true); }
         setCookTime(data.cook_time_minutes?.toString() ?? "");
+        if (data.cook_time_minutes_max) { setCookTimeMax(data.cook_time_minutes_max.toString()); setShowCookTimeMax(true); }
         if (data.bake_time) setBakeTime(data.bake_time.toString());
         if (data.bake_time_max) { setBakeTimeMax(data.bake_time_max.toString()); setShowBakeTimeMax(true); }
         if (data.bake_time_unit) setBakeTimeUnit(data.bake_time_unit);
@@ -345,7 +302,9 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
         if (data.servings_max) { setServingsMax(data.servings_max.toString()); setShowServingsMax(true); }
         setServingsType(data.servings_type ?? "");
         setPrepTime(data.prep_time_minutes?.toString() ?? "");
+        if (data.prep_time_minutes_max) { setPrepTimeMax(data.prep_time_minutes_max.toString()); setShowPrepTimeMax(true); }
         setCookTime(data.cook_time_minutes?.toString() ?? "");
+        if (data.cook_time_minutes_max) { setCookTimeMax(data.cook_time_minutes_max.toString()); setShowCookTimeMax(true); }
         if (data.bake_time) setBakeTime(data.bake_time.toString());
         if (data.bake_time_max) { setBakeTimeMax(data.bake_time_max.toString()); setShowBakeTimeMax(true); }
         if (data.bake_time_unit) setBakeTimeUnit(data.bake_time_unit);
@@ -608,7 +567,9 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
       servings_max: servingsMax ? parseInt(servingsMax) : null,
       servings_type: servingsType.trim() || null,
       prep_time_minutes: prepTime ? parseInt(prepTime) : null,
+      prep_time_minutes_max: showPrepTimeMax && prepTimeMax ? parseInt(prepTimeMax) : null,
       cook_time_minutes: cookTime ? parseInt(cookTime) : null,
+      cook_time_minutes_max: showCookTimeMax && cookTimeMax ? parseInt(cookTimeMax) : null,
       notes: notes.trim() || null,
       ingredients: snapIngredients,
       steps: snapSteps,
@@ -676,7 +637,9 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
       servings_max: servingsMax ? parseInt(servingsMax) : null,
       servings_type: servingsType.trim() || null,
       prep_time_minutes: prepTime ? parseInt(prepTime) : null,
+      prep_time_minutes_max: showPrepTimeMax && prepTimeMax ? parseInt(prepTimeMax) : null,
       cook_time_minutes: cookTime ? parseInt(cookTime) : null,
+      cook_time_minutes_max: showCookTimeMax && cookTimeMax ? parseInt(cookTimeMax) : null,
       bake_time: bakeTime ? parseInt(bakeTime) : null,
       bake_time_max: bakeTimeMax ? parseInt(bakeTimeMax) : null,
       bake_time_unit: bakeTime ? bakeTimeUnit : null,
@@ -1012,14 +975,60 @@ export default function RecipeForm({ recipe, tags }: RecipeFormProps) {
             />
           </div>
         </div>
+        {/* Prep / Cook — single input by default; typing "20-30" auto-splits
+            into a min/max range and reveals the second input. Mirrors the
+            mobile app's rangeRow / rangeInput / rangeDash pattern. */}
         {[
-          { id: "prepTime", label: "Prep (min)", value: prepTime, set: setPrepTime },
-          { id: "cookTime", label: "Cook (min)", value: cookTime, set: setCookTime },
-        ].map(({ id, label, value, set }) => (
+          {
+            id: "prepTime",
+            label: "Prep (min)",
+            value: prepTime,
+            setValue: setPrepTime,
+            valueMax: prepTimeMax,
+            setValueMax: setPrepTimeMax,
+            showMax: showPrepTimeMax,
+            setShowMax: setShowPrepTimeMax,
+            maxRef: prepTimeMaxRef,
+          },
+          {
+            id: "cookTime",
+            label: "Cook (min)",
+            value: cookTime,
+            setValue: setCookTime,
+            valueMax: cookTimeMax,
+            setValueMax: setCookTimeMax,
+            showMax: showCookTimeMax,
+            setShowMax: setShowCookTimeMax,
+            maxRef: cookTimeMaxRef,
+          },
+        ].map(({ id, label, value, setValue, valueMax, setValueMax, showMax, setShowMax, maxRef }) => (
           <div key={id}>
             <label htmlFor={id} className="block text-sm font-medium">{label}</label>
-            <input id={id} type="number" min={0} value={value} onChange={(e) => set(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent" />
+            <div className="mt-1 flex items-center gap-1">
+              <input
+                id={id}
+                type="text"
+                inputMode="numeric"
+                value={value}
+                onChange={(e) => handleDashSplit(e.target.value, setValue, setValueMax, setShowMax, maxRef, showMax)}
+                className="min-w-0 flex-1 rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+              {showMax && (
+                <>
+                  <span className="text-xs text-muted">–</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    ref={maxRef}
+                    value={valueMax}
+                    onChange={(e) => setValueMax(e.target.value)}
+                    onBlur={() => { if (!valueMax.trim()) setShowMax(false); }}
+                    placeholder="Max"
+                    className="min-w-0 flex-1 rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </>
+              )}
+            </div>
           </div>
         ))}
       </div>
