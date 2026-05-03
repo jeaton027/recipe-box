@@ -29,3 +29,41 @@ h5,
 h6 {
   font-family: var(--font-heading), Georgia, serif;
 }
+
+/* ── Print styles ──────────────────────────────────────────────────────
+   Triggered when the user prints or saves a page as PDF (via the
+   browser's native dialog, invoked from RecipeActionsMenu). Most app
+   chrome is hidden via Tailwind `print:hidden` utilities; these rules
+   handle the things Tailwind utilities can't easily express:
+   page margins, color preservation, sensible page breaks within long
+   recipes, and forcing the white background. */
+@media print {
+  @page {
+    margin: 0.5in;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  /* Force colors (accent backgrounds on step numbers, notes block)
+     to render rather than getting stripped by browser print defaults. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Don't break inside an ingredient/step list item, or inside the
+     notes block — keeps each unit visually intact across page breaks. */
+  li,
+  section h2 + * {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Avoid a section heading being orphaned at the bottom of a page. */
+  h2 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+}

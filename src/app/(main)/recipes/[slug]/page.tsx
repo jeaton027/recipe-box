@@ -9,7 +9,8 @@ import CompareButton from "@/components/recipes/CompareButton";
 import CookModeButton from "@/components/recipes/CookModeButton";
 import MoreFromSource from "@/components/recipes/MoreFromSource";
 import RecipeStatusToggle from "@/components/recipes/RecipeStatusToggle";
-import TagPills from "@/components/recipes/TagPills";
+import InlineTagEditor from "@/components/recipes/InlineTagEditor";
+import CookNotesSection from "@/components/recipes/CookNotesSection";
 import SeenInMenus from "@/components/menus/SeenInMenus";
 import RecipeActionsMenu from "@/components/recipes/RecipeActionsMenu";
 
@@ -65,7 +66,7 @@ export default async function RecipeDetailPage({
 		<div className="flex flex-col">
 			
 			{/* Top row: buttons aligned right */}
-			<div className="flex justify-end gap-2">
+			<div className="flex justify-end gap-2 print:hidden">
 				{/* Action buttons */}
 				<div className="flex items-center justify-end gap-2">
 					<SaveMenu
@@ -87,10 +88,12 @@ export default async function RecipeDetailPage({
 					<h1 className="font-heading text-3xl font-bold tracking-tight">
 					{recipe.title}
 					</h1>
-					<RecipeStatusToggle
-					recipeId={recipe.id}
-					initialStatus={recipe.status ?? "saved"}
-					/>
+					<div className="print:hidden">
+						<RecipeStatusToggle
+						recipeId={recipe.id}
+						initialStatus={recipe.status ?? "saved"}
+						/>
+					</div>
 				</div>
 
 				{recipe.description && (
@@ -102,7 +105,7 @@ export default async function RecipeDetailPage({
 		</div>
 
       {/* Variation pills (left) and Compare + Cook Mode (right) — above thumbnail */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <VariationPills siblings={siblingVariations} />
         <div className="ml-auto flex items-center gap-2">
           <CompareButton
@@ -179,18 +182,21 @@ export default async function RecipeDetailPage({
       )}
 
 		{/* Tags — top 4 by specificity, rest collapsed */}
-		<div className="flex items-start justify-between gap-2">
-			<TagPills tags={recipeTags} />
+		{/* mb-6 lives here (not on TagPills) so the gap above the
+		    CookMode button stays consistent whether or not the recipe
+		    has any tags — TagPills returns null when empty. */}
+		<div className="mb-6 flex items-start justify-between gap-2 print:hidden">
+			<InlineTagEditor recipeId={recipe.id} initialTags={recipeTags} />
 			<a
 				href="#related"
-				className="shrink-0 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-medium text-muted hover:border-accent hover:text-accent"
+				className="ml-auto shrink-0 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-medium text-muted hover:border-accent hover:text-accent"
 				title="Other Related Recipes"
 			>
 				Related
 			</a>
 		</div>
 
-		<div >
+		<div className="print:hidden">
 			<CookModeButton slug={recipe.slug} />
 		</div>
 
@@ -249,10 +255,15 @@ export default async function RecipeDetailPage({
         </section>
       )}
 
+      {/* Cook's Notes — user's running journal, between Notes and Related */}
+      <CookNotesSection recipeId={recipe.id} initial={recipe.cook_notes ?? ""} />
+
       {/* Related: Seen in menus + source */}
       <section id="related" className="mt-8 scroll-mt-20 space-y-3">
-        <h2 className="font-heading mb-3 text-xl font-semibold">Related</h2>
-        <SeenInMenus recipeId={recipe.id} />
+        <h2 className="font-heading mb-3 text-xl font-semibold print:hidden">Related</h2>
+        <div className="print:hidden">
+          <SeenInMenus recipeId={recipe.id} />
+        </div>
         {recipe.source_url && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className="text-sm text-muted">
@@ -266,10 +277,12 @@ export default async function RecipeDetailPage({
                 {new URL(recipe.source_url).hostname}
               </a>
             </p>
-            <MoreFromSource
-              sourceHostname={new URL(recipe.source_url).hostname}
-              currentRecipeId={recipe.id}
-            />
+            <div className="print:hidden">
+              <MoreFromSource
+                sourceHostname={new URL(recipe.source_url).hostname}
+                currentRecipeId={recipe.id}
+              />
+            </div>
           </div>
         )}
       </section>

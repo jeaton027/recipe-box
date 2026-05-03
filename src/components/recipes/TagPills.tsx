@@ -25,10 +25,25 @@ const specificity: Record<string, number> = {
 
 const MAX_VISIBLE = 4;
 
-export default function TagPills({ tags }: { tags: TagWithCategory[] }) {
+type Props = {
+  tags: TagWithCategory[];
+  /**
+   * Optional trailing element rendered inside the same flex row as the
+   * tag pills + "+x" overflow indicator. Used by InlineTagEditor on the
+   * detail page to put a "+ Add tag" button alongside the existing tags
+   * (so its visual ordering matches the pill row, with extra ml-3
+   * spacing for differentiation).
+   */
+  trailing?: React.ReactNode;
+};
+
+export default function TagPills({ tags, trailing }: Props) {
   const [expanded, setExpanded] = useState(false);
 
-  if (tags.length === 0) return null;
+  // When `trailing` is present we still render the row even with zero
+  // tags — the trailing slot becomes the only thing visible (e.g. the
+  // empty-state "+ Add tag" pill).
+  if (tags.length === 0 && !trailing) return null;
 
   // Sort by specificity
   const sorted = [...tags].sort(
@@ -39,7 +54,7 @@ export default function TagPills({ tags }: { tags: TagWithCategory[] }) {
   const remaining = sorted.length - MAX_VISIBLE;
 
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       {visible.map((tag) => (
         <Link
           key={tag.id}
@@ -67,6 +82,7 @@ export default function TagPills({ tags }: { tags: TagWithCategory[] }) {
           Show less
         </button>
       )}
+      {trailing}
     </div>
   );
 }

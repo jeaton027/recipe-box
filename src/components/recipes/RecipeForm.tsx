@@ -13,6 +13,7 @@ import type { OriginalSnapshot, RecipeWithDetails, Tag, TagCategory } from "@/li
 import { categoryLabels, quickTagCategories, categoryOrder } from "@/lib/utils/tag-helpers";
 import { compressImage } from "@/lib/utils/compress-image";
 import { parseFraction, formatQtyForInput } from "@/lib/utils/format-quantity";
+import { stripEmoji } from "@/lib/parsers/text";
 import TagPickerOverlay from "@/components/recipes/TagPickerOverlay";
 import OverlayShell from "@/components/shared/OverlayShell";
 
@@ -29,7 +30,9 @@ type StepItem =
 
 // Client-side parsers for paste-and-parse feature
 function parseIngredientText(text: string): IngredientItem[] {
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  // stripEmoji here scrubs decorative emojis from pasted lines before
+  // any tokenizing/regex work happens — keeps quantities/units clean.
+  const lines = text.split("\n").map((l) => stripEmoji(l).trim()).filter(Boolean);
   const items: IngredientItem[] = [];
   for (const line of lines) {
     const cleaned = line.replace(/^[•\-–—*▪▸►◦‣⁃▢☐□]\s*/, "");

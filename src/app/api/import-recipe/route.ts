@@ -6,19 +6,9 @@ import {
   type ParsedIngredient,
 } from "@/lib/parsers/ingredient";
 import { extractBakeFromSteps } from "@/lib/parsers/bake";
+import { stripEmoji, decodeHtml, titleCaseFromAllCaps } from "@/lib/parsers/text";
 
 const NOTES_MAX_CHARS = 2000;
-
-function decodeHtml(str: string): string {
-  return str
-    .replace(/&quot;/gi, '"')
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
-    .replace(/&amp;/gi, "&");
-}
 
 // Convert a snippet of HTML into plain text with lightweight markdown:
 // bullet (`- `) for <ul>/<li>, numbered for <ol>/<li>, paragraphs get
@@ -166,6 +156,21 @@ function extractNotesFromHtml(html: string): string | null {
   return null;
 }
 
+// Strip a redundant heading from the start of the extracted notes
+// block. Some recipe-card plugins render the heading inside the notes
+// container, and after htmlToMarkdown the heading collides with the
+// body — sometimes with no whitespace at all (e.g.
+// "NotesI usually use chicken thighs..." from zestfulkitchen.com).
+//
+// Covers: "Note", "Notes", "Tip", "Tips", "Pro Tip(s)", "Chef's Tip(s)",
+// "Chef's Note(s)" — with or without trailing colon, any case.
+const NOTES_HEADER_STRIP_RE =
+  /^\s*(?:notes?|tips?|pro\s*tips?|chef'?s?\s*(?:notes?|tips?))\s*:?\s*/i;
+
+function stripLeadingNotesHeader(s: string): string {
+  return s.replace(NOTES_HEADER_STRIP_RE, "");
+}
+
 // Top-level note extractor: layer 1 first, then layer 2. Hard-fails to
 // null if the processed markdown exceeds NOTES_MAX_CHARS (we almost
 // certainly grabbed the wrong chunk of the page).
@@ -176,7 +181,7 @@ function extractNotes(
   const raw =
     extractNotesFromSchema(schema) ?? extractNotesFromHtml(html) ?? null;
   if (!raw) return null;
-  const processed = htmlToMarkdown(raw);
+  const processed = stripLeadingNotesHeader(htmlToMarkdown(raw));
   if (!processed) return null;
   if (processed.length > NOTES_MAX_CHARS) return null;
   return processed;
@@ -244,19 +249,51 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No recipe data found on this page" }, { status: 422 });
   }
 
-  // 4) parse ISO duration to minutes  e.g. "PT1H30M" -> 90
-  function parseDuration(val: unknown): number | null {
-    if (!val || typeof val !== "string") return null;
-    const h = val.match(/(\d+)H/)?.[1];
-    const m = val.match(/(\d+)M/)?.[1];
-    return (parseInt(h ?? "0") * 60) + parseInt(m ?? "0") || null;
+  // 4) parse duration to {min, max} minutes. Handles three shapes:
+  //    - ISO 8601 ("PT1H30M") — single value
+  //    - Plain range ("15-20 minutes", "1 to 2 hours") — both
+  //    - Plain single ("15 minutes") — single value
+  // JSON-LD is supposed to be ISO, but real recipe sites are messy and
+  // sometimes drop the raw user-entered string into prepTime/cookTime.
+  function parseDuration(val: unknown): { min: number | null; max: number | null } {
+    if (!val || typeof val !== "string") return { min: null, max: null };
+    // ISO 8601 first.
+    if (/^PT/i.test(val)) {
+      const h = val.match(/(\d+)H/i)?.[1];
+      const m = val.match(/(\d+)M/i)?.[1];
+      const total = parseInt(h ?? "0") * 60 + parseInt(m ?? "0");
+      return { min: total || null, max: null };
+    }
+    // Plain text — look for range first, then single.
+    const range = val.match(/(\d+)\s*(?:[-–]|to)\s*(\d+)\s*(hours?|hrs?|minutes?|mins?)?/i);
+    if (range) {
+      const isHours = /hours?|hrs?/i.test(range[3] ?? "");
+      return {
+        min: parseInt(range[1]) * (isHours ? 60 : 1),
+        max: parseInt(range[2]) * (isHours ? 60 : 1),
+      };
+    }
+    const single = val.match(/(\d+)\s*(hours?|hrs?|minutes?|mins?)?/i);
+    if (single) {
+      const isHours = /hours?|hrs?/i.test(single[2] ?? "");
+      return { min: parseInt(single[1]) * (isHours ? 60 : 1), max: null };
+    }
+    return { min: null, max: null };
   }
 
-  // 5) parse servings from "4 servings" or just "4"
-  function parseServings(val: unknown): number | null {
-    if (!val) return null;
-    const n = parseInt(String(val));
-    return isNaN(n) ? null : n;
+  // 5) parse servings from "4 servings", "4-6 servings", "Serves 4 to 6", or just "4"
+  function parseServings(val: unknown): { min: number | null; max: number | null } {
+    if (!val) return { min: null, max: null };
+    const s = String(val);
+    const range = s.match(/(\d+)\s*(?:[-–]|to)\s*(\d+)/);
+    if (range) {
+      return { min: parseInt(range[1]), max: parseInt(range[2]) };
+    }
+    const single = s.match(/(\d+)/);
+    if (single) {
+      return { min: parseInt(single[1]), max: null };
+    }
+    return { min: null, max: null };
   }
 
   // 6) parse ingredients — attempt to split "2 cups flour" into parts
@@ -426,17 +463,31 @@ export async function POST(req: NextRequest) {
   // 9) Extract bake temp and time from step text
   const bake = extractBakeFromSteps(steps);
 
+  // Apply stripEmoji to user-visible text fields (decorative emojis
+  // sneak in via Instagram captions and some recipe blogs). Numeric
+  // fields are untouched.
+  const notes = extractNotes(schema, html);
+  const yields = parseServings(schema.recipeYield);
+  const prepDur = parseDuration(schema.prepTime);
+  const cookDur = parseDuration(schema.cookTime);
   return NextResponse.json({
-    title: decodeHtml(String(schema.name ?? "")),
-    description: decodeHtml(String(schema.description ?? "")),
-    servings: parseServings(schema.recipeYield),
-    prep_time_minutes: parseDuration(schema.prepTime),
-    cook_time_minutes: parseDuration(schema.cookTime),
+    title: titleCaseFromAllCaps(stripEmoji(decodeHtml(String(schema.name ?? "")))),
+    description: stripEmoji(decodeHtml(String(schema.description ?? ""))),
+    servings: yields.min,
+    servings_max: yields.max,
+    prep_time_minutes: prepDur.min,
+    prep_time_minutes_max: prepDur.max,
+    cook_time_minutes: cookDur.min,
+    cook_time_minutes_max: cookDur.max,
     ...bake,
-    notes: extractNotes(schema, html),
+    notes: notes ? stripEmoji(notes) : null,
     images: allImages,
-    ingredients: ingredients.map((i) => ({ ...i, name: decodeHtml(i.name), unit: i.unit ? decodeHtml(i.unit) : i.unit })),
-    steps: steps.map((s) => decodeHtml(String(s))),
+    ingredients: ingredients.map((i) => ({
+      ...i,
+      name: stripEmoji(decodeHtml(i.name)),
+      unit: i.unit ? decodeHtml(i.unit) : i.unit,
+    })),
+    steps: steps.map((s) => stripEmoji(decodeHtml(String(s)))),
   });
 }
 

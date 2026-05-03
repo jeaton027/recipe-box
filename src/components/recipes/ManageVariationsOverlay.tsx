@@ -219,16 +219,49 @@ export default function ManageVariationsOverlay({
     setLinkLoading(true);
 
     try {
+      const ids = Array.from(linkSelectedIds);
+
+      // Look up family_ids on the selected recipes so we can decide
+      // whether to create a new family, join an existing one, or reject
+      // an ambiguous multi-family pick.
+      const { data: selected, error: selErr } = await supabase
+        .from("recipes")
+        .select("id, family_id")
+        .in("id", ids);
+      if (selErr) throw selErr;
+
+      const selectedFamilies = new Set(
+        (selected ?? [])
+          .map((r) => r.family_id)
+          .filter((f): f is string => !!f)
+      );
+
       let fid = familyId;
       if (!fid) {
-        fid = crypto.randomUUID();
+        // Current recipe is standalone. Three sub-cases:
+        if (selectedFamilies.size > 1) {
+          // Picked recipes from 2+ different families. Merging families
+          // isn't supported through this flow — bail with a clear error.
+          alert(
+            "Can't link recipes from different families. Pick variations from a single family, or pick only standalone recipes."
+          );
+          setLinkLoading(false);
+          return;
+        } else if (selectedFamilies.size === 1) {
+          // Join the existing family of the picked recipe(s).
+          fid = [...selectedFamilies][0];
+        } else {
+          // All picks are standalone too — mint a new family for everyone.
+          fid = crypto.randomUUID();
+        }
+        // Assign the current recipe to whichever family we resolved.
         await supabase
           .from("recipes")
           .update({ family_id: fid })
           .eq("id", recipeId);
       }
 
-      const ids = Array.from(linkSelectedIds);
+      // Pull all selected recipes into the resolved family.
       await supabase
         .from("recipes")
         .update({ family_id: fid })
@@ -249,11 +282,17 @@ export default function ManageVariationsOverlay({
   const excludeFromPicker = new Set([recipeId, ...siblingIds]);
 
   function isDisabledForLink(recipe: Recipe): boolean {
-    return (
-      recipe.family_id !== null &&
-      recipe.family_id !== undefined &&
-      recipe.family_id !== familyId
-    );
+    // Standalone (no family) → always pickable.
+    if (!recipe.family_id) return false;
+    // Already in our family → pickable (defensive; siblings are already
+    // excluded via excludeFromPicker).
+    if (recipe.family_id === familyId) return false;
+    // Different family. If the current recipe is itself standalone, allow
+    // picking — we'll join the target's family instead of creating a new
+    // one. Only block when current recipe is in a different family
+    // (we don't merge two existing families through this flow).
+    if (!familyId) return false;
+    return true;
   }
 
   const linkTray =

@@ -9,6 +9,15 @@ type Props = {
   selectedIds: string[];
   onToggle: (tagId: string) => void;
   onClose: () => void;
+  /**
+   * Optional commit callback. When provided, the picker is treated as
+   * "buffered" — the parent should manage a draft selection and commit
+   * it on Done. The footer renders a [Done][Cancel] split instead of
+   * the default single Done button. Done calls onConfirm; Cancel/X/
+   * backdrop/Esc only call onClose. When omitted, current live-update
+   * behavior is preserved (single Done = onClose).
+   */
+  onConfirm?: () => void;
 };
 
 export default function TagPickerOverlay({
@@ -16,6 +25,7 @@ export default function TagPickerOverlay({
   selectedIds,
   onToggle,
   onClose,
+  onConfirm,
 }: Props) {
   const [search, setSearch] = useState("");
   const [openCategory, setOpenCategory] = useState<string | null>(null);
@@ -237,15 +247,40 @@ export default function TagPickerOverlay({
           )}
         </div>
 
-        {/* Footer */}
+        {/* Footer — single Done for live-update callers (RecipeForm),
+            Done+Cancel split for buffered callers (InlineTagEditor on
+            the detail page). The split lets the user back out of any
+            tag changes they made in the picker without committing. */}
         <div className="border-t border-border px-5 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark"
-          >
-            Done
-          </button>
+          {onConfirm ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onConfirm();
+                  onClose();
+                }}
+                className="flex-[5] rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark"
+              >
+                Done
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-md border border-border bg-white px-3 py-2 text-sm font-medium text-muted hover:border-accent hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark"
+            >
+              Done
+            </button>
+          )}
         </div>
       </div>
     </>

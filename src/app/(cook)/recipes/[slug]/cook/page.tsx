@@ -11,11 +11,23 @@ import StampLastCooked from "@/components/cook/StampLastCooked";
 
 export default async function CookModePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ mult?: string }>;
 }) {
   const { slug } = await params;
+  const { mult } = await searchParams;
   const supabase = await createClient();
+
+  // Parse the mult param into a number, fall back to undefined (= 1× default).
+  // Carried over from the recipe detail page so the user's chosen scale
+  // persists when they tap into cook mode.
+  const initialMultiplier = mult ? parseFloat(mult) : undefined;
+  const validMultiplier =
+    initialMultiplier !== undefined && Number.isFinite(initialMultiplier) && initialMultiplier > 0
+      ? initialMultiplier
+      : undefined;
 
   const { data: recipe } = await supabase
     .from("recipes")
@@ -40,7 +52,12 @@ export default async function CookModePage({
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <CookHeader title={recipe.title} backHref={`/recipes/${recipe.slug}`} />
+      <CookHeader
+        title={recipe.title}
+        backHref={`/recipes/${recipe.slug}`}
+        recipeId={recipe.id}
+        initialCookNotes={recipe.cook_notes ?? ""}
+      />
 
       {/* Stamp last_cooked_at on mount — powers "Recently Made" */}
       <StampLastCooked recipeId={recipe.id} />
@@ -79,6 +96,7 @@ export default async function CookModePage({
               servingsMax={recipe.servings_max}
               servingsType={recipe.servings_type}
               ingredients={ingredients}
+              initialMultiplier={validMultiplier}
             />
           </section>
         )}

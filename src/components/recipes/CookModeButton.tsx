@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 type Props = {
   slug: string;
@@ -9,11 +12,18 @@ type Props = {
  * reads as the page's "I'm about to make this" action without competing as
  * loudly as a solid accent button. Compare / Save / etc. stay quiet outline
  * chips up top; this is the verb.
+ *
+ * Reads `?mult=` from the current URL (kept in sync by ServingsMultiplier)
+ * and forwards it onto the cook-mode href so the user's chosen scale
+ * carries over instead of resetting to 1× when they tap into cook mode.
  */
 export default function CookModeButton({ slug }: Props) {
+  const searchParams = useSearchParams();
+  const mult = searchParams.get("mult");
+  const href = `/recipes/${slug}/cook${mult ? `?mult=${encodeURIComponent(mult)}` : ""}`;
   return (
     <Link
-      href={`/recipes/${slug}/cook`}
+      href={href}
       className="group mb-6 flex w-full items-center gap-3 rounded-lg bg-accent-soft px-4 py-2.5 text-accent-dark transition-colors hover:bg-accent hover:text-white"
       title="Larger text, screen stays awake, distractions hidden"
     >

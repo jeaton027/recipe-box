@@ -18,29 +18,14 @@
  *   7. Fallback                   — whole string as name
  */
 
+import { decodeHtml, stripEmoji } from "@/lib/parsers/text";
+
 export type ParsedIngredient = {
   quantity: string | null;
   quantity_max: string | null;
   unit: string | null;
   name: string;
 };
-
-// HTML-entity decode kept local: callers may already have their own
-// decoder for full-page HTML, but we always need it here for the `name`
-// field since either flow can hand us encoded text. decodeHtml is
-// idempotent on already-decoded input, so this is safe to apply twice.
-function decodeHtml(str: string): string {
-  return str
-    .replace(/&quot;/gi, '"')
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
-      String.fromCharCode(parseInt(code, 16))
-    )
-    .replace(/&amp;/gi, "&");
-}
 
 // Common units used in compact form (no space between number and unit).
 const COMPACT_UNITS = "g|kg|ml|l|oz|lb|lbs|tsp|tbsp|cup|cups|c|T|t";
@@ -61,7 +46,11 @@ function nullIfEmpty(s: string): string | null {
 }
 
 export function parseIngredientLine(str: string): ParsedIngredient {
-  const clean = str.trim();
+  // stripEmoji handles emoji-prefixed ingredient lines from Instagram
+  // captions ("🌱 120g flour"), and is a no-op otherwise. Vulgar
+  // fractions (½ ¼ ¾ etc) are not Extended_Pictographic and survive,
+  // so quantity parsing still works for "½ tsp salt".
+  const clean = stripEmoji(str).trim();
 
   // 1. Range + unit + name: "1-2 tsp sugar", "1/4-1/2 C flour"
   const mr = clean.match(

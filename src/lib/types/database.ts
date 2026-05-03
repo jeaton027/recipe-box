@@ -43,6 +43,12 @@ export type Recipe = {
   cook_time_minutes: number | null;
   cook_time_minutes_max: number | null;
   notes: string | null;
+  /**
+   * User's running journal kept while cooking. Distinct from `notes`,
+   * which holds recipe-author/source tips. Edited via the Cook Mode
+   * bottom sheet and the detail-page "Cook's Notes" section.
+   */
+  cook_notes: string | null;
   source_url: string | null;
   thumbnail_url: string | null;
   gallery_images: string[] | null;
