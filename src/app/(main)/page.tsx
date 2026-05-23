@@ -29,6 +29,7 @@ export default async function HomePage() {
   // ── Build all queries in parallel ──
   const [
     seasonalResult,
+    lineupResult,
     triedResult,
     recentResult,
     savedResult,
@@ -41,7 +42,17 @@ export default async function HomePage() {
           .eq("tag_id", pickedTag.id)
       : Promise.resolve({ data: [] as { recipe_id: string }[] }),
 
-    // 2. Recently made — recipes the user actually entered Cook Mode for.
+    // 2. Current Lineup — recipes the user has explicitly bookmarked
+    // as "to make soon" via SaveMenu. Auto-clears when Cook Mode is
+    // entered so this list shrinks as recipes get made.
+    supabase
+      .from("recipes")
+      .select("*")
+      .eq("in_lineup", true)
+      .order("updated_at", { ascending: false })
+      .limit(12),
+
+    // 3. Recently made — recipes the user actually entered Cook Mode for.
     // Implicit signal (stamped on cook-mode entry) rather than a curated
     // status bookmark. See src/components/cook/StampLastCooked.tsx.
     supabase
@@ -51,14 +62,14 @@ export default async function HomePage() {
       .order("last_cooked_at", { ascending: false })
       .limit(12),
 
-    // 3. Recently added
+    // 4. Recently added
     supabase
       .from("recipes")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(12),
 
-    // 4. Try something new (saved, random-ish via daily seed)
+    // 5. Try something new (saved, random-ish via daily seed)
     supabase
       .from("recipes")
       .select("*")
@@ -79,6 +90,7 @@ export default async function HomePage() {
     seasonalRecipes = data ?? [];
   }
 
+  const lineupRecipes = (lineupResult.data ?? []) as Recipe[];
   const triedRecipes = (triedResult.data ?? []) as Recipe[];
   const recentRecipes = (recentResult.data ?? []) as Recipe[];
 
@@ -103,6 +115,7 @@ export default async function HomePage() {
 
   const hasAnyRecipes =
     seasonalRecipes.length > 0 ||
+    lineupRecipes.length > 0 ||
     triedRecipes.length > 0 ||
     recentRecipes.length > 0 ||
     shuffled.length > 0;
@@ -140,7 +153,18 @@ export default async function HomePage() {
             recipes={seasonalRecipes}
           />
 
-          {/* 2. Recently made */}
+          {/* 2. Current Lineup — only render if the user has any. Skip the
+              empty-state placeholder on web; the section is just absent
+              when there's nothing to make soon. */}
+          {lineupRecipes.length > 0 && (
+            <HomeSection
+              title="Current Lineup"
+              subtitle="Recipes you're planning to make"
+              recipes={lineupRecipes}
+            />
+          )}
+
+          {/* 3. Recently made */}
           <HomeSection
             title="Recently Made"
             subtitle="Recipes you've cooked recently"

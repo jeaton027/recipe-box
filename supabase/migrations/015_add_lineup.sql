@@ -1,0 +1,1 @@
+ALTER TABLE recipes ADD COLUMN in_lineup boolean NOT NULL DEFAULT false;

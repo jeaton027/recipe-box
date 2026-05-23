@@ -18,7 +18,7 @@
  *   7. Fallback                   — whole string as name
  */
 
-import { decodeHtml, stripEmoji } from "@/lib/parsers/text";
+import { decodeHtml, stripEmoji } from "./text";
 
 export type ParsedIngredient = {
   quantity: string | null;

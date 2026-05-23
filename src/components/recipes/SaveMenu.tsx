@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import AddToCollectionButton from "@/components/collections/AddToCollectionButton";
 import AddToMenuButton from "@/components/menus/AddToMenuButton";
 
 type Props = {
   recipeId: string;
   recipeThumbnail?: string | null;
+  /** Current Lineup membership — drives the label of the Lineup item. */
+  inLineup: boolean;
 };
 
 /**
@@ -17,11 +21,39 @@ type Props = {
  * Both child components handle their own data fetching, picker UI,
  * and toggle logic. This wrapper just decides which one to open.
  */
-export default function SaveMenu({ recipeId, recipeThumbnail }: Props) {
+export default function SaveMenu({
+  recipeId,
+  recipeThumbnail,
+  inLineup,
+}: Props) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [menuOpen, setMenuOpen] = useState(false);
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
   const [menuPickerOpen, setMenuPickerOpen] = useState(false);
+  // Local optimistic mirror so the menu item flips label immediately on
+  // click without waiting for the server-side refetch.
+  const [localInLineup, setLocalInLineup] = useState(inLineup);
   const ref = useRef<HTMLDivElement>(null);
+
+  async function handleToggleLineup() {
+    const next = !localInLineup;
+    setMenuOpen(false);
+    setLocalInLineup(next); // optimistic
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("recipes")
+      .update({ in_lineup: next })
+      .eq("id", recipeId);
+    if (error) {
+      setLocalInLineup(!next); // revert
+      alert("Couldn't update lineup: " + error.message);
+      return;
+    }
+    // Refresh the server component tree so the homepage lineup row + any
+    // other dependent UI picks up the change.
+    startTransition(() => router.refresh());
+  }
 
   // Dismiss the dropdown on outside-click / Escape.
   useEffect(() => {
@@ -116,6 +148,42 @@ export default function SaveMenu({ recipeId, recipeThumbnail }: Props) {
                 </svg>
               </span>
               Add to Menu
+            </button>
+
+            <button
+              role="menuitem"
+              type="button"
+              onClick={handleToggleLineup}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent-light ${
+                localInLineup ? "text-red-600 hover:text-red-700" : "text-foreground"
+              }`}
+            >
+              <span
+                className={`h-4 w-4 shrink-0 ${
+                  localInLineup ? "text-red-500" : "text-muted"
+                }`}
+              >
+                {localInLineup ? (
+                  // Minus-in-circle (remove)
+                  <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15 12H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                    />
+                  </svg>
+                ) : (
+                  // Plus-in-circle (add)
+                  <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                    />
+                  </svg>
+                )}
+              </span>
+              {localInLineup ? "Remove from Lineup" : "Add to Lineup"}
             </button>
           </div>
         )}

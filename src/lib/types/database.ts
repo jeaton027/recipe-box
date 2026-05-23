@@ -64,6 +64,11 @@ export type Recipe = {
   status: "saved" | "tried" | "favorite";
   original_snapshot: OriginalSnapshot | null;
   last_cooked_at: string | null;
+  /** "Current Lineup" membership — quick bucket of "recipes to make soon".
+   *  Toggled via SaveMenu. Auto-cleared on Cook Mode entry so the lineup
+   *  self-empties as recipes get made. Surfaces in a dedicated row on
+   *  the homepage. */
+  in_lineup: boolean;
   created_at: string;
   updated_at: string;
 };

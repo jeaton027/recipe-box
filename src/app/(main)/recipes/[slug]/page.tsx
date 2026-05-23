@@ -72,6 +72,7 @@ export default async function RecipeDetailPage({
 					<SaveMenu
 						recipeId={recipe.id}
 						recipeThumbnail={recipe.thumbnail_url}
+						inLineup={!!recipe.in_lineup}
 					/>
 					<RecipeActionsMenu
 						recipeId={recipe.id}
