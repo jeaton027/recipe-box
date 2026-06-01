@@ -6,6 +6,7 @@ import type { Collection } from "@/lib/types/database";
 import ItemPickerOverlay, {
   type PickerItem,
 } from "@/components/shared/ItemPickerOverlay";
+import { emitMembershipsChanged } from "@/lib/hooks/use-recipe-memberships";
 
 type Props = {
   recipeId: string;
@@ -74,6 +75,7 @@ export default function AddToCollectionButton({
         .from("collection_recipes")
         .insert({ collection_id: collectionId, recipe_id: recipeId });
     }
+    emitMembershipsChanged(recipeId);
   }
 
   async function createCollection(name: string) {
@@ -100,6 +102,7 @@ export default function AddToCollectionButton({
 
     setCollections((prev) => [...prev, newCol]);
     setMemberOf((prev) => new Set(prev).add(newCol.id));
+    emitMembershipsChanged(recipeId);
   }
 
   const items: PickerItem[] = collections.map((c) => ({

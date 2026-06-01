@@ -12,6 +12,8 @@ import RecipeStatusToggle from "@/components/recipes/RecipeStatusToggle";
 import InlineTagEditor from "@/components/recipes/InlineTagEditor";
 import CookNotesSection from "@/components/recipes/CookNotesSection";
 import SeenInMenus from "@/components/menus/SeenInMenus";
+import RelatedRecipes from "@/components/recipes/RelatedRecipes";
+import ScrollToRelatedButton from "@/components/recipes/ScrollToRelatedButton";
 import RecipeActionsMenu from "@/components/recipes/RecipeActionsMenu";
 
 export default async function RecipeDetailPage({
@@ -188,13 +190,7 @@ export default async function RecipeDetailPage({
 		    has any tags — TagPills returns null when empty. */}
 		<div className="mb-6 flex items-start justify-between gap-2 print:hidden">
 			<InlineTagEditor recipeId={recipe.id} initialTags={recipeTags} />
-			<a
-				href="#related"
-				className="ml-auto shrink-0 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-medium text-muted hover:border-accent hover:text-accent"
-				title="Other Related Recipes"
-			>
-				Related
-			</a>
+			<ScrollToRelatedButton />
 		</div>
 
 		<div className="print:hidden">
@@ -259,9 +255,11 @@ export default async function RecipeDetailPage({
       {/* Cook's Notes — user's running journal, between Notes and Related */}
       <CookNotesSection recipeId={recipe.id} initial={recipe.cook_notes ?? ""} />
 
-      {/* Related: Seen in menus + source */}
-      <section id="related" className="mt-8 scroll-mt-20 space-y-3">
-        <h2 className="font-heading mb-3 text-xl font-semibold print:hidden">Related</h2>
+      {/* Related: cross-menu recipes + seen-in menus + source */}
+      <section id="related" className="mt-8 scroll-mt-20 space-y-4">
+        <div className="print:hidden">
+          <RelatedRecipes recipeId={recipe.id} />
+        </div>
         <div className="print:hidden">
           <SeenInMenus recipeId={recipe.id} />
         </div>

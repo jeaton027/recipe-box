@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import ItemPickerOverlay, {
   type PickerItem,
 } from "@/components/shared/ItemPickerOverlay";
+import { emitMembershipsChanged } from "@/lib/hooks/use-recipe-memberships";
 import type { CourseType } from "./MenuRecipePicker";
 
 type Menu = {
@@ -93,6 +94,7 @@ export default function AddToMenuButton({
         .from("menu_recipes")
         .insert({ menu_id: menuId, recipe_id: recipeId, course });
     }
+    emitMembershipsChanged(recipeId);
   }
 
   async function createMenu(name: string) {
@@ -119,6 +121,7 @@ export default function AddToMenuButton({
 
     setMenus((prev) => [...prev, newMenu]);
     setMemberOf((prev) => new Set(prev).add(newMenu.id));
+    emitMembershipsChanged(recipeId);
   }
 
   const items: PickerItem[] = menus.map((m) => ({
